@@ -238,9 +238,11 @@ let shiftDown=false;
 let panStart=null,panCam=null;
 
 function resize(){
-  cv.width=cw.clientWidth; cv.height=cw.clientHeight;
-  camX=cv.width/2; camY=80;
-  renderFrame();
+  const w=cw.clientWidth||Math.max(window.innerWidth-280,400);
+  const h=cw.clientHeight||Math.max(window.innerHeight-56,400);
+  cv.width=w; cv.height=h;
+  camX=w/2; camY=50;
+  if(G&&G.grid) renderFrame();
 }
 window.addEventListener('resize',resize);
 
@@ -259,6 +261,7 @@ function s2g(sx,sy){
 //  RENDU ISOMÉTRIQUE
 // ═══════════════════════════════════════════════════════
 function renderFrame(){
+  if(!G||!G.grid)return;
   cx.clearRect(0,0,cv.width,cv.height);
   cx.fillStyle='#080814';
   cx.fillRect(0,0,cv.width,cv.height);
@@ -570,6 +573,7 @@ function monthTick(){
 
   checkQuests();
   recalc();
+  renderEvents();
   updatePopBadge();
   renderFrame();
 }
@@ -958,11 +962,13 @@ function loop(ts){
 }
 
 // ═══════════════════════════════════════════════════════
-//  DÉMARRAGE
+//  DÉMARRAGE — différé pour que le layout CSS soit calculé
 // ═══════════════════════════════════════════════════════
-resize();
-newGame();
-requestAnimationFrame(loop);
+requestAnimationFrame(function init(){
+  newGame();   // G initialisé en premier
+  resize();    // canvas dimensionné avec G valide
+  requestAnimationFrame(loop);
+});
 </script>
 </body>
 </html>
