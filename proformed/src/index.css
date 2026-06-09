@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cyan-primary: #00c5d5;
+  --color-dark-bg: #0d0d0d;
+  --color-dark-card: #1a1a1a;
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #0d0d0d;
+  color: white;
+}
+
+#root {
+  all: unset;
+  display: block;
+}
