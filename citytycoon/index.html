@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🏙️ CityTycoon V2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0a14;color:#e0e0e0;font-family:'Segoe UI',sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column;user-select:none}
+#hud{display:flex;align-items:center;background:#0f0f28;border-bottom:2px solid #1a1a50;height:54px;flex-shrink:0;padding:0 12px;gap:16px}
+#hud-title{font-size:1.3em;font-weight:900;color:#e94560;letter-spacing:2px;white-space:nowrap;margin-right:8px}
+.hs{display:flex;flex-direction:column;align-items:center;min-width:80px}
+.hs-l{font-size:.58em;color:#555;text-transform:uppercase;letter-spacing:.8px}
+.hs-v{font-size:.98em;font-weight:700;white-space:nowrap}
+.green{color:#2ecc71}.red{color:#e74c3c}.blue{color:#3498db}.yellow{color:#f1c40f}.orange{color:#e67e22}.white{color:#fff}
+#main{flex:1;display:flex;overflow:hidden}
+#cw{flex:1;position:relative;overflow:hidden;cursor:crosshair}
+#cw.grabbing{cursor:grabbing}
+canvas{position:absolute;top:0;left:0;display:block}
+#pop-float{position:absolute;background:rgba(0,0,50,.85);border:1.5px solid #3498db;border-radius:999px;padding:3px 12px;font-size:.95em;font-weight:700;color:#3498db;pointer-events:none;z-index:10;white-space:nowrap;transform:translate(-50%,-50%);transition:top .5s,left .5s}
+#msgs{position:absolute;bottom:8px;left:8px;pointer-events:none;z-index:20;display:flex;flex-direction:column-reverse;gap:3px;max-width:380px}
+.msg{background:rgba(5,5,20,.9);border-radius:5px;padding:5px 9px;font-size:.75em;animation:fup 4s ease forwards}
+.mi{border-left:3px solid #3498db;color:#5dade2}.ms{border-left:3px solid #2ecc71;color:#2ecc71}.mw{border-left:3px solid #f39c12;color:#f39c12}.me{border-left:3px solid #e74c3c;color:#e74c3c}
+@keyframes fup{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0}}
+#right{width:275px;background:#0f0f28;border-left:2px solid #1a1a50;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
+#ri{flex:1;overflow-y:auto;padding:9px}
+#ri::-webkit-scrollbar{width:4px}
+#ri::-webkit-scrollbar-thumb{background:#1a1a50;border-radius:2px}
+.panel{background:#080820;border:1px solid #1a1a50;border-radius:7px;padding:9px;margin-bottom:8px}
+.pt{font-size:.65em;text-transform:uppercase;letter-spacing:1px;color:#444;margin-bottom:7px}
+.quest{background:#0c0c2a;border:1px solid #1a1a50;border-radius:5px;padding:7px;margin-bottom:4px;transition:border-color .3s}
+.quest.active{border-color:#e94560}
+.quest.done{border-color:#2ecc71;opacity:.55}
+.qt{font-weight:700;font-size:.82em;margin-bottom:2px}
+.qd{font-size:.72em;color:#777;line-height:1.35}
+.qpb{margin-top:5px;height:3px;background:#1a1a50;border-radius:2px;overflow:hidden}
+.qpbf{height:100%;background:linear-gradient(90deg,#e94560,#f39c12);transition:width .4s}
+.qr{font-size:.68em;color:#f4d03f;margin-top:3px}
+.ev{padding:6px 9px;border-radius:5px;margin-bottom:4px;font-size:.78em;border:1px solid;line-height:1.3}
+.ev-fire{background:#2a0800;border-color:#e74c3c;color:#e87968}
+.ev-crime{background:#180020;border-color:#9b59b6;color:#bb8fce}
+.ev-fest{background:#001a00;border-color:#2ecc71;color:#7dcea0}
+.ev-storm{background:#001428;border-color:#3498db;color:#7fb3d3}
+.bb{display:flex;align-items:center;width:100%;padding:5px 7px;margin-bottom:3px;background:#0c0c2a;border:1px solid #1a1a50;border-radius:5px;color:#ccc;cursor:pointer;font-size:.77em;text-align:left;transition:.1s}
+.bb:hover{background:#1a1a50;border-color:#53d8fb}
+.bb.on{background:#e94560!important;border-color:#ff6b6b!important;color:#fff}
+.bb.cant{opacity:.3;cursor:not-allowed;pointer-events:none}
+.bi{font-size:1.08em;margin-right:6px;min-width:18px}
+.bn{font-weight:700}.bc{color:#f4d03f;font-size:.71em;margin-top:1px}
+.cat{margin-bottom:9px}
+.ct{font-size:.63em;text-transform:uppercase;letter-spacing:.8px;color:#444;margin-bottom:4px}
+#bdbtn{width:100%;padding:6px;background:#300;border:1px solid #922b21;border-radius:5px;color:#e74c3c;cursor:pointer;font-size:.77em;margin-bottom:7px;transition:.1s}
+#bdbtn:hover,#bdbtn.on{background:#e74c3c;color:#fff;border-color:#e74c3c}
+#speeds{display:flex;gap:3px;margin-bottom:7px}
+.spd{flex:1;padding:4px 2px;background:#0c0c2a;border:1px solid #1a1a50;border-radius:4px;color:#aaa;cursor:pointer;font-size:.72em;transition:.1s}
+.spd:hover,.spd.on{background:#e94560;border-color:#e94560;color:#fff}
+.trow{margin-bottom:8px}
+.trow label{display:flex;justify-content:space-between;font-size:.73em;color:#777;margin-bottom:3px}
+input[type=range]{width:100%;accent-color:#e94560;cursor:pointer}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;display:none;align-items:center;justify-content:center}
+#mbox{background:#0f0f28;border:2px solid #e94560;border-radius:14px;padding:28px;max-width:440px;text-align:center}
+#mbox h2{color:#e94560;font-size:1.8em;margin-bottom:10px}
+#mbox p{color:#aaa;margin-bottom:18px;line-height:1.6;font-size:.88em}
+#mbox button{padding:10px 26px;background:#e94560;border:none;border-radius:7px;color:#fff;font-size:.95em;cursor:pointer}
+#mbox button:hover{background:#c0392b}
+#tooltip{position:fixed;background:rgba(5,5,25,.95);border:1px solid #3498db;border-radius:6px;padding:7px 10px;font-size:.76em;pointer-events:none;z-index:100;display:none;line-height:1.5;max-width:190px}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div id="hud-title">🏙️ CITYTYCOON V2</div>
+  <div class="hs"><div class="hs-l">💰 Argent</div><div class="hs-v white" id="h-money">$50 000</div></div>
+  <div class="hs"><div class="hs-l">👥 Population</div><div class="hs-v blue" id="h-pop">0</div></div>
+  <div class="hs"><div class="hs-l">😊 Bonheur</div><div class="hs-v" id="h-hap">50%</div></div>
+  <div class="hs"><div class="hs-l">⚡ Énergie</div><div class="hs-v" id="h-pwr">0/0</div></div>
+  <div class="hs"><div class="hs-l">📈 Revenu/mois</div><div class="hs-v" id="h-inc">+$0</div></div>
+  <div class="hs"><div class="hs-l">🗓️ Date</div><div class="hs-v yellow" id="h-date">Jan An 1</div></div>
+  <div class="hs" style="min-width:120px"><div class="hs-l">🏆 Objectif</div><div class="hs-v orange" id="h-obj">5 000 hab.</div></div>
+</div>
+<div id="main">
+  <div id="cw">
+    <canvas id="world"></canvas>
+    <div id="pop-float">👥 0 habitants</div>
+    <div id="msgs"></div>
+  </div>
+  <div id="right">
+    <div id="ri">
+      <div class="panel" id="qpanel"><div class="pt">🎯 Objectifs & Compétences</div><div id="qlist"></div></div>
+      <div class="panel" id="epanel" style="display:none"><div class="pt">⚠️ Événements Actifs</div><div id="elist"></div></div>
+      <div class="panel">
+        <div class="pt">⚙️ Contrôles</div>
+        <div id="speeds">
+          <button class="spd" onclick="setSpd(0)">⏸</button>
+          <button class="spd on" onclick="setSpd(1)">▶ Lent</button>
+          <button class="spd" onclick="setSpd(2)">▶▶</button>
+          <button class="spd" onclick="setSpd(3)">▶▶▶</button>
+        </div>
+        <div class="trow"><label><span>🏦 Taxes</span><span id="taxv">15%</span></label><input type="range" id="taxs" min="5" max="35" value="15"></div>
+        <button id="bdbtn" onclick="togBD()">🔨 Démolition (Shift+clic)</button>
+      </div>
+      <div class="panel">
+        <div class="pt">🏗️ Constructions</div>
+        <div class="cat"><div class="ct">Infrastructure</div>
+          <button class="bb" id="b-road" onclick="sel('road')"><span class="bi">🛣️</span><div><div class="bn">Route</div><div class="bc">$100</div></div></button>
+          <button class="bb" id="b-powerplant" onclick="sel('powerplant')"><span class="bi">⚡</span><div><div class="bn">Centrale Électrique</div><div class="bc">$6 000 · -$250/mois</div></div></button>
+        </div>
+        <div class="cat"><div class="ct">Résidentiel</div>
+          <button class="bb" id="b-house" onclick="sel('house')"><span class="bi">🏠</span><div><div class="bn">Maison</div><div class="bc">$500 · 6 hab.</div></div></button>
+          <button class="bb" id="b-apartment" onclick="sel('apartment')"><span class="bi">🏢</span><div><div class="bn">Appartement</div><div class="bc">$2 000 · 25 hab.</div></div></button>
+          <button class="bb" id="b-tower" onclick="sel('tower')"><span class="bi">🏙️</span><div><div class="bn">Tour Résidentielle</div><div class="bc">$8 000 · 100 hab.</div></div></button>
+        </div>
+        <div class="cat"><div class="ct">Commercial</div>
+          <button class="bb" id="b-shop" onclick="sel('shop')"><span class="bi">🏬</span><div><div class="bn">Commerce</div><div class="bc">$1 500 · +$250/mois</div></div></button>
+          <button class="bb" id="b-office" onclick="sel('office')"><span class="bi">🏦</span><div><div class="bn">Bureau</div><div class="bc">$4 000 · +$500/mois</div></div></button>
+          <button class="bb" id="b-factory" onclick="sel('factory')"><span class="bi">🏭</span><div><div class="bn">Usine</div><div class="bc">$3 000 · +$600/mois · pollue</div></div></button>
+        </div>
+        <div class="cat"><div class="ct">Loisirs</div>
+          <button class="bb" id="b-park" onclick="sel('park')"><span class="bi">🌳</span><div><div class="bn">Parc</div><div class="bc">$400 · +Bonheur</div></div></button>
+          <button class="bb" id="b-stadium" onclick="sel('stadium')"><span class="bi">🏟️</span><div><div class="bn">Stade</div><div class="bc">$10 000 · +Bonheur max</div></div></button>
+        </div>
+        <div class="cat"><div class="ct">Services Publics</div>
+          <button class="bb" id="b-school" onclick="sel('school')"><span class="bi">🏫</span><div><div class="bn">École</div><div class="bc">$3 500 · -$120/mois</div></div></button>
+          <button class="bb" id="b-hospital" onclick="sel('hospital')"><span class="bi">🏥</span><div><div class="bn">Hôpital</div><div class="bc">$6 000 · -$250/mois</div></div></button>
+          <button class="bb" id="b-police" onclick="sel('police')"><span class="bi">👮</span><div><div class="bn">Commissariat</div><div class="bc">$2 500 · -$100/mois</div></div></button>
+          <button class="bb" id="b-firestation" onclick="sel('firestation')"><span class="bi">🚒</span><div><div class="bn">Caserne Pompiers</div><div class="bc">$2 500 · -$100/mois</div></div></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="modal"><div id="mbox"><h2 id="mt"></h2><p id="mp"></p><button onclick="restart()">🔄 Nouvelle Partie</button></div></div>
+<div id="tooltip"></div>
+<script>
+// ═══════════════════════════════════════════════════════
+//  CONSTANTES
+// ═══════════════════════════════════════════════════════
+const TW=64,TH=32,GW=22,GH=22;
+const MN=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
+const DEFS={
+  road:       {n:'Route',         cost:100,   up:0,   res:0,  inc:0,  pwr:0, pOut:0,  hap:0,   bh:3,   col:'#666',tc:'#888'},
+  powerplant: {n:'Centrale',      cost:6000,  up:250, res:0,  inc:0,  pwr:0, pOut:70, hap:-5,  bh:32,  col:'#ca6f1e',tc:'#e59866'},
+  house:      {n:'Maison',        cost:500,   up:10,  res:6,  inc:0,  pwr:1, pOut:0,  hap:0,   bh:22,  col:'#1e8449',tc:'#27ae60'},
+  apartment:  {n:'Appartement',   cost:2000,  up:50,  res:25, inc:0,  pwr:3, pOut:0,  hap:0,   bh:42,  col:'#1a5276',tc:'#2980b9'},
+  tower:      {n:'Tour Résid.',   cost:8000,  up:150, res:100,inc:0,  pwr:8, pOut:0,  hap:0,   bh:72,  col:'#0e3251',tc:'#1a5276'},
+  shop:       {n:'Commerce',      cost:1500,  up:30,  res:0,  inc:250,pwr:2, pOut:0,  hap:5,   bh:20,  col:'#7d6608',tc:'#d4ac0d'},
+  office:     {n:'Bureau',        cost:4000,  up:80,  res:0,  inc:500,pwr:4, pOut:0,  hap:0,   bh:38,  col:'#4a235a',tc:'#7d3c98'},
+  factory:    {n:'Usine',         cost:3000,  up:100, res:0,  inc:600,pwr:5, pOut:0,  hap:-20, bh:26,  col:'#424949',tc:'#7f8c8d'},
+  park:       {n:'Parc',          cost:400,   up:5,   res:0,  inc:0,  pwr:0, pOut:0,  hap:20,  bh:0,   col:'#1e8449',tc:'#27ae60'},
+  stadium:    {n:'Stade',         cost:10000, up:300, res:0,  inc:0,  pwr:6, pOut:0,  hap:35,  bh:26,  col:'#0e6655',tc:'#1abc9c'},
+  school:     {n:'École',         cost:3500,  up:120, res:0,  inc:0,  pwr:2, pOut:0,  hap:15,  bh:24,  col:'#4a235a',tc:'#8e44ad'},
+  hospital:   {n:'Hôpital',       cost:6000,  up:250, res:0,  inc:0,  pwr:3, pOut:0,  hap:22,  bh:26,  col:'#7b241c',tc:'#cb4335'},
+  police:     {n:'Commissariat',  cost:2500,  up:100, res:0,  inc:0,  pwr:1, pOut:0,  hap:8,   bh:20,  col:'#154360',tc:'#1f618d'},
+  firestation:{n:'Caserne',       cost:2500,  up:100, res:0,  inc:0,  pwr:1, pOut:0,  hap:8,   bh:20,  col:'#641e16',tc:'#922b21'},
+};
+
+const QUESTS=[
+  {id:'q1', title:'⚡ Construire une centrale électrique',
+   desc:'Sans électricité, rien ne fonctionne dans votre ville!',
+   hint:'Commencez par placer une centrale.', check:()=>cnt('powerplant')>0, reward:3000, ms:0},
+  {id:'q2', title:'🛣️ Tracer 5 routes',
+   desc:'Les routes permettent à vos habitants et véhicules de circuler.',
+   hint:'Tracez des routes pour relier vos futurs bâtiments.', check:()=>cnt('road')>=5, reward:1000, ms:0},
+  {id:'q3', title:'🏠 Construire 3 maisons',
+   desc:'Vos premiers habitants ont besoin de logements alimentés en électricité.',
+   hint:'Assurez-vous que les maisons sont proches de la centrale.', check:()=>cnt('house')>=3, reward:2000, ms:0},
+  {id:'q4', title:'👥 Atteindre 100 habitants',
+   desc:'Votre ville grandit! Continuez à construire des logements.',
+   hint:'Plus de logements = plus d\'habitants.', check:()=>G.pop>=100, reward:5000, ms:1},
+  {id:'q5', title:'🚒 Construire une caserne de pompiers',
+   desc:'À partir de 100 habitants, des incendies peuvent éclater! Protégez votre ville.',
+   hint:'Placez une caserne avant qu\'il ne soit trop tard.', check:()=>cnt('firestation')>0, reward:3000, ms:1},
+  {id:'q6', title:'🏫 Construire une école',
+   desc:'L\'éducation améliore le bonheur et accélère la croissance de la population.',
+   hint:'Une école dessert les bâtiments dans un rayon de 5 cases.', check:()=>cnt('school')>0, reward:4000, ms:2},
+  {id:'q7', title:'👮 Construire un commissariat',
+   desc:'La criminalité augmente avec la population. Un commissariat est indispensable.',
+   hint:'Placez-le au centre de votre ville.', check:()=>cnt('police')>0, reward:4000, ms:2},
+  {id:'q8', title:'👥 Atteindre 500 habitants',
+   desc:'Une vraie ville se profile! Équilibrez logements, commerces et services.',
+   hint:'Les appartements logent 25 personnes, les tours 100.', check:()=>G.pop>=500, reward:10000, ms:2},
+  {id:'q9', title:'🏥 Construire un hôpital',
+   desc:'La santé de vos habitants est primordiale pour atteindre 5 000 habitants.',
+   hint:'L\'hôpital augmente beaucoup le bonheur.', check:()=>cnt('hospital')>0, reward:5000, ms:3},
+  {id:'q10',title:'🏆 Atteindre 5 000 habitants — VICTOIRE!',
+   desc:'Félicitations! Vous avez bâti une métropole florissante!',
+   hint:'Construisez des tours résidentielles pour loger beaucoup d\'habitants.', check:()=>G.pop>=5000, reward:50000, ms:3},
+];
+
+const EVDEFS=[
+  {id:'fire',  label:'🔥 Incendie!',            cls:'ev-fire',  minPop:100, w:3, dur:3,
+   desc:'Un bâtiment est en flammes! Une caserne proche peut l\'éteindre.'},
+  {id:'crime', label:'🔫 Vague de criminalité',  cls:'ev-crime', minPop:200, w:2, dur:2,
+   desc:'La criminalité explose! Un commissariat réduit l\'impact.'},
+  {id:'fest',  label:'🎪 Festival de la ville!', cls:'ev-fest',  minPop:150, w:4, dur:1,
+   desc:'Festival! +$5 000 et +10 bonheur pour ce mois.'},
+  {id:'storm', label:'⛈️ Tempête violente!',     cls:'ev-storm', minPop:50,  w:2, dur:2,
+   desc:'Tempête! Certains bâtiments perdent leur électricité temporairement.'},
+];
+
+// ═══════════════════════════════════════════════════════
+//  ÉTAT DU JEU
+// ═══════════════════════════════════════════════════════
+let G={};
+
+function newGame(){
+  G={
+    grid:Array.from({length:GH},()=>Array(GW).fill(null)),
+    money:50000, pop:0, hap:50, pTotal:0, pUsed:0,
+    mi:0, yr:1, running:true, spd:1,
+    selB:null, bd:false,
+    agents:[], parts:[], events:[],
+    done:new Set(), ms:0,
+    tick:0,
+  };
+  document.getElementById('msgs').innerHTML='';
+  document.getElementById('elist').innerHTML='';
+  document.getElementById('epanel').style.display='none';
+  document.getElementById('modal').style.display='none';
+  addMsg('🏙️ Bienvenue! Suivez les objectifs à droite pour construire votre ville.','i');
+  addMsg('💡 Astuce: commencez par une centrale électrique!','i');
+  buildQuests();
+  setSpd(1);
+  recalc();
+  renderUI();
+}
+
+function cnt(t){let n=0;for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)if(G.grid[y][x]?.type===t)n++;return n;}
+
+// ═══════════════════════════════════════════════════════
+//  CANVAS
+// ═══════════════════════════════════════════════════════
+const cw=document.getElementById('cw');
+const cv=document.getElementById('world');
+const cx=cv.getContext('2d');
+let camX=0,camY=0;
+let hoverGX=-1,hoverGY=-1;
+let shiftDown=false;
+let panStart=null,panCam=null;
+
+function resize(){
+  const w=cw.clientWidth||Math.max(window.innerWidth-280,400);
+  const h=cw.clientHeight||Math.max(window.innerHeight-56,400);
+  cv.width=w; cv.height=h;
+  camX=w/2; camY=50;
+  if(G&&G.grid) renderFrame();
+}
+window.addEventListener('resize',resize);
+
+function g2s(gx,gy){
+  return{x:camX+(gx-gy)*TW/2, y:camY+(gx+gy)*TH/2};
+}
+function s2g(sx,sy){
+  const rx=sx-camX, ry=sy-camY;
+  return{
+    x:Math.round((rx/(TW/2)+ry/(TH/2))/2),
+    y:Math.round((ry/(TH/2)-rx/(TW/2))/2)
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDU ISOMÉTRIQUE
+// ═══════════════════════════════════════════════════════
+function renderFrame(){
+  if(!G||!G.grid)return;
+  cx.clearRect(0,0,cv.width,cv.height);
+  cx.fillStyle='#080814';
+  cx.fillRect(0,0,cv.width,cv.height);
+
+  // Dessin par diagonale (back→front)
+  for(let s=0;s<GW+GH-1;s++){
+    for(let gx=0;gx<GW;gx++){
+      const gy=s-gx;
+      if(gy<0||gy>=GH)continue;
+      drawTile(gx,gy);
+    }
+  }
+
+  // Agents (voitures / habitants)
+  for(const a of G.agents) drawAgent(a);
+
+  // Particules (feu/fumée)
+  for(const p of G.parts) drawPart(p);
+
+  // Hover
+  if(hoverGX>=0&&hoverGX<GW&&hoverGY>=0&&hoverGY<GH){
+    const{x:sx,y:sy}=g2s(hoverGX,hoverGY);
+    cx.beginPath();
+    cx.moveTo(sx,sy); cx.lineTo(sx+TW/2,sy+TH/2);
+    cx.lineTo(sx,sy+TH); cx.lineTo(sx-TW/2,sy+TH/2);
+    cx.closePath();
+    const isBd=G.bd||shiftDown;
+    cx.fillStyle=isBd?'rgba(231,76,60,.3)':'rgba(83,216,251,.2)';
+    cx.fill();
+    cx.strokeStyle=isBd?'#e74c3c':'#53d8fb';
+    cx.lineWidth=1.5; cx.stroke();
+  }
+
+  // Pop badge
+  const mid=g2s(GW/2,GH/2);
+  const pb=document.getElementById('pop-float');
+  pb.style.left=mid.x+'px';
+  pb.style.top=(mid.y-20)+'px';
+}
+
+function drawTile(gx,gy){
+  const{x:sx,y:sy}=g2s(gx,gy);
+  const cell=G.grid[gy][gx];
+
+  // Sol
+  const g=(gx+gy)%2===0?'#193d1c':'#1b4320';
+  diamond(sx,sy,g,'rgba(0,0,0,.1)');
+
+  if(!cell)return;
+  const d=DEFS[cell.type];
+  const powered=cell.pow;
+
+  if(cell.type==='road'){drawRoad(sx,sy);return;}
+  if(cell.type==='park'){drawPark(sx,sy,powered);return;}
+
+  const bh=d.bh;
+  const col=powered?d.col:shadeHex(d.col,-60);
+  const tc =powered?d.tc:shadeHex(d.tc,-60);
+
+  isoBox(sx,sy,bh,col,tc,cell.fire);
+
+  // Fenêtres pour les immeubles hauts
+  if(bh>25&&powered&&!cell.fire) drawWins(sx,sy,bh,cell.type);
+
+  // Indicateur hors-tension
+  if(!powered&&d.pwr>0){
+    cx.font='11px serif'; cx.textAlign='right'; cx.textBaseline='top';
+    cx.fillText('🔴',sx+TW/2-2,sy+TH/2-bh+2);
+  }
+}
+
+function diamond(sx,sy,fill,stroke){
+  cx.beginPath();
+  cx.moveTo(sx,sy); cx.lineTo(sx+TW/2,sy+TH/2);
+  cx.lineTo(sx,sy+TH); cx.lineTo(sx-TW/2,sy+TH/2);
+  cx.closePath();
+  cx.fillStyle=fill; cx.fill();
+  if(stroke){cx.strokeStyle=stroke;cx.lineWidth=.5;cx.stroke();}
+}
+
+function isoBox(sx,sy,bh,col,tc,fire){
+  const lc=shadeHex(col,-25), rc=shadeHex(col,-12);
+
+  // Face gauche
+  cx.beginPath();
+  cx.moveTo(sx-TW/2,sy+TH/2);
+  cx.lineTo(sx,sy+TH);
+  cx.lineTo(sx,sy+TH-bh);
+  cx.lineTo(sx-TW/2,sy+TH/2-bh);
+  cx.closePath();
+  cx.fillStyle=fire?'#922b21':lc; cx.fill();
+  cx.strokeStyle='rgba(0,0,0,.25)'; cx.lineWidth=.5; cx.stroke();
+
+  // Face droite
+  cx.beginPath();
+  cx.moveTo(sx,sy+TH);
+  cx.lineTo(sx+TW/2,sy+TH/2);
+  cx.lineTo(sx+TW/2,sy+TH/2-bh);
+  cx.lineTo(sx,sy+TH-bh);
+  cx.closePath();
+  cx.fillStyle=fire?'#e74c3c':rc; cx.fill();
+  cx.strokeStyle='rgba(0,0,0,.25)'; cx.lineWidth=.5; cx.stroke();
+
+  // Toit
+  cx.beginPath();
+  cx.moveTo(sx,sy+TH-bh);
+  cx.lineTo(sx+TW/2,sy+TH/2-bh);
+  cx.lineTo(sx,sy-bh);
+  cx.lineTo(sx-TW/2,sy+TH/2-bh);
+  cx.closePath();
+  cx.fillStyle=fire?'#f39c12':tc; cx.fill();
+  cx.strokeStyle='rgba(0,0,0,.15)'; cx.lineWidth=.5; cx.stroke();
+}
+
+function drawRoad(sx,sy){
+  diamond(sx,sy,'#3a3a3a',null);
+  cx.fillStyle='#555';
+  cx.fillRect(sx-2,sy+TH/2-1,4,TH/2+2);
+  cx.fillRect(sx-TW/4,sy+TH/2-1,TW/2,2);
+}
+
+function drawPark(sx,sy,powered){
+  diamond(sx,sy,'#145a32','rgba(0,0,0,.1)');
+  if(powered){
+    cx.font=Math.floor(TH*.8)+'px serif';
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.fillText('🌳',sx,sy+TH/2+2);
+  }
+}
+
+function drawWins(sx,sy,bh,type){
+  const cols={apartment:'#aed6f1',tower:'#85c1e9',office:'#d2b4de',hospital:'#f9ebea'};
+  const c=cols[type]||'#aaa';
+  cx.fillStyle=c;
+  const rows=Math.min(Math.floor(bh/10),4);
+  for(let r=0;r<rows;r++){
+    const wy=sy+TH-bh+(r*10)+4;
+    cx.fillRect(sx-TW/2+6,wy,5,4);
+    cx.fillRect(sx+TW/2-11,wy,5,4);
+  }
+}
+
+function drawAgent(a){
+  const{x:sx,y:sy}=g2s(a.gx,a.gy);
+  // Interpolated position
+  const px=sx+(a.ox||0), py=sy+(a.oy||0);
+
+  if(a.type==='car'){
+    cx.save();
+    cx.translate(px,py+TH/2);
+    cx.fillStyle=a.color;
+    cx.fillRect(-5,-3,10,5);
+    cx.fillStyle='#111';
+    cx.fillRect(-4,1,3,2); cx.fillRect(2,1,3,2);
+    cx.restore();
+  } else {
+    // Person
+    cx.beginPath();
+    cx.arc(px,py+TH/2-2,3.5,0,Math.PI*2);
+    cx.fillStyle=a.color; cx.fill();
+    cx.strokeStyle='rgba(0,0,0,.4)'; cx.lineWidth=1; cx.stroke();
+  }
+}
+
+function drawPart(p){
+  cx.globalAlpha=p.life/p.maxLife;
+  cx.beginPath();
+  cx.arc(p.x,p.y,p.size,0,Math.PI*2);
+  cx.fillStyle=p.col; cx.fill();
+  cx.globalAlpha=1;
+}
+
+// ═══════════════════════════════════════════════════════
+//  HELPER COULEURS
+// ═══════════════════════════════════════════════════════
+function shadeHex(hex,amt){
+  const n=parseInt(hex.replace('#',''),16);
+  const r=Math.max(0,Math.min(255,(n>>16)+amt));
+  const g=Math.max(0,Math.min(255,((n>>8)&0xff)+amt));
+  const b=Math.max(0,Math.min(255,(n&0xff)+amt));
+  return'#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+// ═══════════════════════════════════════════════════════
+//  CONSTRUIRE / DÉMOLIR
+// ═══════════════════════════════════════════════════════
+function build(x,y,type){
+  if(x<0||x>=GW||y<0||y>=GH)return;
+  if(G.grid[y][x]){addMsg('⚠️ Emplacement occupé!','w');return;}
+  const d=DEFS[type];
+  if(G.money<d.cost){addMsg(`❌ Fonds insuffisants! Besoin: $${fmt(d.cost)}`,'e');return;}
+  G.money-=d.cost;
+  G.grid[y][x]={type,pow:d.pwr===0,fire:false};
+  recalc();
+  spawnAgents();
+  checkQuests();
+  renderFrame();
+}
+
+function demolish(x,y){
+  if(x<0||x>=GW||y<0||y>=GH)return;
+  if(!G.grid[y][x])return;
+  const ref=Math.floor(DEFS[G.grid[y][x].type].cost*.25);
+  G.money+=ref;
+  G.grid[y][x]=null;
+  addMsg(`🔨 Démoli — remboursement $${fmt(ref)}`,'i');
+  recalc(); renderFrame();
+}
+
+// ═══════════════════════════════════════════════════════
+//  CALCULS
+// ═══════════════════════════════════════════════════════
+function recalc(){
+  // Puissance
+  G.pTotal=0; G.pUsed=0;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const c=G.grid[y][x]; if(!c)continue;
+    G.pTotal+=DEFS[c.type].pOut;
+  }
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const c=G.grid[y][x]; if(!c)continue;
+    const p=DEFS[c.type].pwr;
+    if(p===0){c.pow=true;continue;}
+    if(G.pUsed+p<=G.pTotal){c.pow=true;G.pUsed+=p;}
+    else c.pow=false;
+  }
+  renderUI();
+}
+
+function calcHap(){
+  let h=40;
+  const tax=+document.getElementById('taxs').value;
+  h-=Math.max(0,tax-20)*1.5;
+  h+=Math.max(0,10-tax)*1;
+  let pk=0,sc=0,ho=0,po=0,fi=0,st=0,fa=0,unp=0;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const c=G.grid[y][x];if(!c)continue;
+    const t=c.type;
+    if(t==='park')pk++;
+    if(t==='school')sc++;
+    if(t==='hospital')ho++;
+    if(t==='police')po++;
+    if(t==='firestation')fi++;
+    if(t==='stadium')st++;
+    if(t==='factory')fa++;
+    if(!c.pow&&DEFS[t].pwr>0)unp++;
+  }
+  h+=Math.min(pk*5,25)+Math.min(sc*10,30)+Math.min(ho*12,36);
+  h+=Math.min(po*6,18)+Math.min(fi*6,18)+Math.min(st*20,40);
+  h-=Math.min(fa*4,35)+unp*3;
+  // Événements actifs
+  for(const ev of G.events){
+    if(ev.id==='fire')h-=15;
+    if(ev.id==='crime')h-=12;
+    if(ev.id==='storm')h-=8;
+    if(ev.id==='fest')h+=10;
+  }
+  return Math.max(0,Math.min(100,Math.round(h)));
+}
+
+function calcInc(){
+  const tax=+document.getElementById('taxs').value/100;
+  let inc=Math.floor(G.pop*60*tax);
+  let upk=0,com=0;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const c=G.grid[y][x];if(!c)continue;
+    const d=DEFS[c.type];
+    upk+=d.up;
+    if(c.pow&&d.inc>0)com+=d.inc;
+  }
+  return inc+com-upk;
+}
+
+function calcCap(){
+  let cap=0;
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const c=G.grid[y][x];if(!c||!c.pow)continue;
+    cap+=DEFS[c.type].res;
+  }
+  return cap;
+}
+
+// ═══════════════════════════════════════════════════════
+//  TICK MENSUEL
+// ═══════════════════════════════════════════════════════
+let ticker=null;
+
+function monthTick(){
+  if(!G.running)return;
+  G.hap=calcHap();
+  const cap=calcCap();
+  const gr=G.hap>65?.12:G.hap>45?.06:G.hap>25?.01:-.03;
+  G.pop=Math.max(0,Math.min(cap,Math.floor(G.pop+cap*gr)));
+  const inc=calcInc();
+  G.money+=inc;
+  G.mi++;
+  if(G.mi>=12){G.mi=0;G.yr++;}
+  if(inc>=0) addMsg(`📅 ${MN[G.mi]} An${G.yr}: +$${fmt(inc)} | 👥${fmt(G.pop)}`,'s');
+  else addMsg(`📅 ${MN[G.mi]} An${G.yr}: $${fmt(inc)} ⚠️DÉFICIT | 👥${fmt(G.pop)}`,'w');
+
+  // Réduction durée événements
+  G.events=G.events.filter(ev=>{ev.rem--;return ev.rem>0;});
+
+  // Nouveaux événements aléatoires
+  if(G.pop>=50) tryEvent();
+
+  if(G.money<-25000){endGame(false);return;}
+  if(G.pop>=5000){endGame(true);return;}
+
+  checkQuests();
+  recalc();
+  renderEvents();
+  updatePopBadge();
+  renderFrame();
+}
+
+function setSpd(s){
+  G.spd=s;
+  clearInterval(ticker);
+  document.querySelectorAll('.spd').forEach((b,i)=>b.className='spd'+(i===s?' on':''));
+  if(s>0&&G.running){
+    const ms=[0,9000,4500,1800][s];
+    ticker=setInterval(monthTick,ms);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  ÉVÉNEMENTS ALÉATOIRES
+// ═══════════════════════════════════════════════════════
+function tryEvent(){
+  const pool=EVDEFS.filter(e=>G.pop>=e.minPop&&!G.events.find(a=>a.id===e.id));
+  if(!pool.length)return;
+  const total=pool.reduce((s,e)=>s+e.w,0);
+  if(Math.random()*total>pool[0].w*1.5)return; // ~1/3 chance
+  const r=Math.random()*total;
+  let acc=0;
+  for(const e of pool){
+    acc+=e.w;
+    if(r<=acc){
+      triggerEvent(e);
+      break;
+    }
+  }
+}
+
+function triggerEvent(def){
+  const ev={...def, rem:def.dur};
+  G.events.push(ev);
+  addMsg(`⚠️ ${def.label} — ${def.desc}`,'w');
+
+  if(def.id==='fire'){
+    // Trouver un bâtiment non-route à mettre en feu
+    const buildings=[];
+    for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+      const c=G.grid[y][x];
+      if(c&&c.type!=='road'&&c.type!=='park'&&!c.fire)buildings.push({x,y,c});
+    }
+    if(buildings.length){
+      const b=buildings[Math.floor(Math.random()*buildings.length)];
+      b.c.fire=true;
+      // Vérifier si caserne proche (rayon 5)
+      const hasFS=hasNearby('firestation',b.x,b.y,5);
+      if(hasFS){
+        setTimeout(()=>{
+          if(G.grid[b.y]&&G.grid[b.y][b.x])G.grid[b.y][b.x].fire=false;
+          addMsg('🚒 L\'incendie a été maîtrisé par la caserne!','s');
+          renderFrame();
+        },4000);
+      } else {
+        // Destruction après 6s
+        setTimeout(()=>{
+          if(G.grid[b.y]&&G.grid[b.y][b.x]){
+            G.grid[b.y][b.x]=null;
+            addMsg('🔥 Un bâtiment a été détruit! Construisez une caserne!','e');
+          }
+          recalc(); renderFrame();
+        },6000);
+      }
+      // Particules de feu
+      const{x:fx,y:fy}=g2s(b.x,b.y);
+      for(let i=0;i<20;i++) G.parts.push(firePart(fx,fy-10));
+    }
+  }
+  if(def.id==='fest'){G.money+=5000; addMsg('🎪 Festival! +$5 000 en caisse!','s');}
+  if(def.id==='crime'&&!hasAnyCnt('police')){
+    G.money=Math.max(0,G.money-2000);
+    addMsg('🔫 Vol! Vous perdez $2 000. Construisez un commissariat!','e');
+  }
+  if(def.id==='storm'){
+    // Couper quelques bâtiments
+    let cut=0;
+    for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+      const c=G.grid[y][x];
+      if(c&&c.pow&&DEFS[c.type].pwr>0&&Math.random()<.3){c.pow=false;cut++;}
+    }
+    if(cut>0) addMsg(`⛈️ Tempête: ${cut} bâtiments hors tension temporairement.`,'w');
+    setTimeout(()=>{recalc();addMsg('🌤️ La tempête est passée, électricité rétablie.','s');renderFrame();},5000);
+  }
+
+  renderEvents();
+}
+
+function hasNearby(type,x,y,radius){
+  for(let gy=0;gy<GH;gy++)for(let gx=0;gx<GW;gx++){
+    if(G.grid[gy][gx]?.type===type){
+      if(Math.abs(gx-x)<=radius&&Math.abs(gy-y)<=radius)return true;
+    }
+  }
+  return false;
+}
+function hasAnyCnt(t){return cnt(t)>0;}
+
+function firePart(x,y){
+  return{
+    x,y,vx:(Math.random()-.5)*1.5,vy:-1-Math.random()*2,
+    size:4+Math.random()*5,
+    col:Math.random()<.5?'#e74c3c':'#f39c12',
+    life:60+Math.random()*60, maxLife:120
+  };
+}
+
+// ═══════════════════════════════════════════════════════
+//  AGENTS (VOITURES + HABITANTS)
+// ═══════════════════════════════════════════════════════
+function spawnAgents(){
+  // Max agents selon pop
+  const maxCars=Math.min(Math.floor(G.pop/5)+2,30);
+  const maxPeople=Math.min(Math.floor(G.pop/3)+2,40);
+
+  // Spawn voitures sur routes
+  const roads=[];
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)if(G.grid[y][x]?.type==='road')roads.push({x,y});
+
+  const carColors=['#e74c3c','#3498db','#f1c40f','#2ecc71','#e67e22','#9b59b6','#1abc9c'];
+  while(G.agents.filter(a=>a.type==='car').length<maxCars&&roads.length>0){
+    const r=roads[Math.floor(Math.random()*roads.length)];
+    G.agents.push({type:'car',gx:r.x,gy:r.y,ox:0,oy:0,tx:r.x,ty:r.y,prog:0,spd:.4+Math.random()*.6,color:carColors[Math.floor(Math.random()*carColors.length)]});
+  }
+
+  // Spawn habitants près logements
+  const homes=[];
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const c=G.grid[y][x];
+    if(c&&c.pow&&['house','apartment','tower'].includes(c.type))homes.push({x,y});
+  }
+  const pColors=['#f5cba7','#d7bde2','#a9cce3','#a9dfbf','#f9e79f'];
+  while(G.agents.filter(a=>a.type==='person').length<maxPeople&&homes.length>0){
+    const h=homes[Math.floor(Math.random()*homes.length)];
+    G.agents.push({type:'person',gx:h.x,gy:h.y,ox:0,oy:0,tx:h.x,ty:h.y,prog:0,spd:.15+Math.random()*.25,color:pColors[Math.floor(Math.random()*pColors.length)],homeX:h.x,homeY:h.y});
+  }
+}
+
+let lastAgentUpdate=0;
+function updateAgents(ts){
+  if(ts-lastAgentUpdate<50)return;
+  const dt=0.05;
+  lastAgentUpdate=ts;
+
+  for(const a of G.agents){
+    a.prog+=a.spd*dt;
+    if(a.prog>=1){
+      a.gx=a.tx; a.gy=a.ty; a.ox=0; a.oy=0; a.prog=0;
+      // Choisir prochaine destination
+      if(a.type==='car'){
+        const nexts=roadNeighbors(a.gx,a.gy);
+        if(nexts.length>0){const n=nexts[Math.floor(Math.random()*nexts.length)];a.tx=n.x;a.ty=n.y;}
+      } else {
+        // Personne: marche autour de sa maison
+        const dx=Math.floor((Math.random()-.5)*5);
+        const dy=Math.floor((Math.random()-.5)*5);
+        const nx=Math.max(0,Math.min(GW-1,a.homeX+dx));
+        const ny=Math.max(0,Math.min(GH-1,a.homeY+dy));
+        a.tx=nx; a.ty=ny;
+      }
+    } else {
+      // Interpoler
+      const{x:sx,y:sy}=g2s(a.gx,a.gy);
+      const{x:tx,y:ty}=g2s(a.tx,a.ty);
+      a.ox=(tx-sx)*a.prog; a.oy=(ty-sy)*a.prog;
+    }
+  }
+
+  // Supprimer excédent
+  const maxCars=Math.min(Math.floor(G.pop/5)+2,30);
+  const maxPeople=Math.min(Math.floor(G.pop/3)+2,40);
+  G.agents=G.agents.filter((a,i)=>{
+    if(a.type==='car')return G.agents.filter(x=>x.type==='car').indexOf(a)<maxCars;
+    return G.agents.filter(x=>x.type==='person').indexOf(a)<maxPeople;
+  });
+}
+
+function roadNeighbors(x,y){
+  const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
+  return dirs.map(d=>({x:x+d.x,y:y+d.y})).filter(p=>
+    p.x>=0&&p.x<GW&&p.y>=0&&p.y<GH&&G.grid[p.y][p.x]?.type==='road'
+  );
+}
+
+function updateParticles(){
+  G.parts=G.parts.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy; p.vy-=.03; p.life--;
+    return p.life>0;
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  QUÊTES
+// ═══════════════════════════════════════════════════════
+function buildQuests(){
+  const el=document.getElementById('qlist');
+  el.innerHTML='';
+  for(const q of QUESTS){
+    const div=document.createElement('div');
+    div.className='quest';
+    div.id='q_'+q.id;
+    div.innerHTML=`<div class="qt">${q.title}</div><div class="qd">${q.desc}</div><div class="qd" style="color:#888;margin-top:3px;font-style:italic">💡 ${q.hint}</div><div class="qpb"><div class="qpbf" style="width:0%"></div></div><div class="qr">🎁 Récompense: $${fmt(q.reward)}</div>`;
+    el.appendChild(div);
+  }
+  updateQuests();
+}
+
+function checkQuests(){
+  for(const q of QUESTS){
+    if(!G.done.has(q.id)&&q.check()){
+      G.done.add(q.id);
+      G.money+=q.reward;
+      addMsg(`✅ Objectif "${q.title}" complété! +$${fmt(q.reward)}`,'s');
+      if(q.id==='q10'){endGame(true);return;}
+    }
+  }
+  updateQuests();
+}
+
+function updateQuests(){
+  const next=QUESTS.find(q=>!G.done.has(q.id));
+  for(const q of QUESTS){
+    const el=document.getElementById('q_'+q.id);
+    if(!el)continue;
+    if(G.done.has(q.id)){el.className='quest done';}
+    else if(q===next){el.className='quest active';}
+    else{el.className='quest';}
+    // Progress bar rough
+    const bar=el.querySelector('.qpbf');
+    if(bar){bar.style.width=G.done.has(q.id)?'100%':'0%';}
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  FIN DE PARTIE
+// ═══════════════════════════════════════════════════════
+function endGame(win){
+  G.running=false;
+  clearInterval(ticker);
+  document.getElementById('mt').textContent=win?'🏆 Victoire!':'💸 Faillite!';
+  document.getElementById('mp').innerHTML=win
+    ?`Félicitations! Vous avez bâti une ville de <b>${fmt(G.pop)}</b> habitants en <b>${G.yr} an(s)</b>!<br>Argent final: <b>$${fmt(Math.floor(G.money))}</b>`
+    :`Votre ville est en faillite après <b>${G.yr} an(s)</b>.<br>Population: <b>${fmt(G.pop)}</b> habitants.<br>Gérez mieux vos finances!`;
+  document.getElementById('modal').style.display='flex';
+}
+
+function restart(){newGame();}
+
+// ═══════════════════════════════════════════════════════
+//  UI
+// ═══════════════════════════════════════════════════════
+function renderUI(){
+  const inc=calcInc();
+  document.getElementById('h-money').textContent='$'+fmt(Math.floor(G.money));
+  document.getElementById('h-money').className='hs-v '+(G.money>=0?'white':'red');
+  document.getElementById('h-pop').textContent=fmt(G.pop);
+  document.getElementById('h-hap').textContent=G.hap+'%';
+  document.getElementById('h-hap').className='hs-v '+(G.hap>60?'green':G.hap>40?'yellow':'red');
+  document.getElementById('h-pwr').textContent=G.pUsed+'/'+G.pTotal;
+  document.getElementById('h-pwr').className='hs-v '+(G.pUsed<=G.pTotal?'green':'red');
+  document.getElementById('h-inc').textContent=(inc>=0?'+':'')+'$'+fmt(inc);
+  document.getElementById('h-inc').className='hs-v '+(inc>=0?'green':'red');
+  document.getElementById('h-date').textContent=MN[G.mi]+' An'+G.yr;
+
+  // Boutons bâtiments
+  Object.keys(DEFS).forEach(t=>{
+    const b=document.getElementById('b-'+t);
+    if(!b)return;
+    b.className='bb'+(G.money<DEFS[t].cost?' cant':'')+(G.selB===t?' on':'');
+  });
+  document.getElementById('bdbtn').className=G.bd?'on':'';
+  updatePopBadge();
+}
+
+function updatePopBadge(){
+  document.getElementById('pop-float').textContent='👥 '+fmt(G.pop)+' habitants';
+}
+
+function renderEvents(){
+  const el=document.getElementById('elist');
+  const panel=document.getElementById('epanel');
+  if(G.events.length===0){panel.style.display='none';return;}
+  panel.style.display='block';
+  el.innerHTML=G.events.map(ev=>`<div class="ev ${ev.cls}"><b>${ev.label}</b> (${ev.rem} mois)<br>${ev.desc}</div>`).join('');
+}
+
+function addMsg(txt,type){
+  const c=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.className='msg m'+type;
+  d.textContent=txt;
+  c.insertBefore(d,c.firstChild);
+  while(c.children.length>8)c.removeChild(c.lastChild);
+}
+
+function fmt(n){return Math.floor(n).toLocaleString('fr-FR');}
+
+document.getElementById('taxs').addEventListener('input',function(){
+  document.getElementById('taxv').textContent=this.value+'%';
+  renderUI();
+});
+
+// ═══════════════════════════════════════════════════════
+//  ENTRÉES SOURIS / CLAVIER
+// ═══════════════════════════════════════════════════════
+function gridFromEvt(e){
+  const r=cw.getBoundingClientRect();
+  return s2g(e.clientX-r.left,e.clientY-r.top);
+}
+
+cw.addEventListener('mousemove',e=>{
+  if(panStart){
+    camX=panCam.x+(e.clientX-panStart.x);
+    camY=panCam.y+(e.clientY-panStart.y);
+    renderFrame(); return;
+  }
+  const{x,y}=gridFromEvt(e);
+  hoverGX=x; hoverGY=y;
+
+  // Tooltip
+  const tip=document.getElementById('tooltip');
+  if(x>=0&&x<GW&&y>=0&&y<GH&&G.grid[y][x]){
+    const c=G.grid[y][x], d=DEFS[c.type];
+    let h=`<b>${c.type==='road'?'🛣️':''} ${d.n}</b><br>`;
+    h+=c.pow?'⚡ Alimenté':'🔴 Hors tension';
+    if(d.inc)h+=`<br>💰 +$${d.inc}/mois`;
+    if(d.up)h+=`<br>💸 -$${d.up}/mois`;
+    if(d.res)h+=`<br>👥 ${d.res} hab.`;
+    if(c.fire)h+=`<br>🔥 EN FEU!`;
+    tip.innerHTML=h;
+    tip.style.display='block';
+    tip.style.left=(e.clientX+14)+'px';
+    tip.style.top=(e.clientY-8)+'px';
+  } else tip.style.display='none';
+
+  if(isDragging&&G.selB==='road'){const{x:gx,y:gy}=gridFromEvt(e);build(gx,gy,'road');}
+  if(isDragging&&(G.bd||shiftDown)){const{x:gx,y:gy}=gridFromEvt(e);demolish(gx,gy);}
+  renderFrame();
+});
+
+let isDragging=false;
+cw.addEventListener('mousedown',e=>{
+  if(e.button===1||e.button===2||(e.button===0&&!G.selB&&!G.bd)){
+    panStart={x:e.clientX,y:e.clientY}; panCam={x:camX,y:camY};
+    cw.classList.add('grabbing'); return;
+  }
+  isDragging=true;
+  const{x,y}=gridFromEvt(e);
+  if(e.shiftKey||G.bd)demolish(x,y);
+  else if(G.selB)build(x,y,G.selB);
+});
+cw.addEventListener('mouseup',()=>{isDragging=false;panStart=null;cw.classList.remove('grabbing');});
+cw.addEventListener('mouseleave',()=>{hoverGX=-1;hoverGY=-1;document.getElementById('tooltip').style.display='none';renderFrame();});
+cw.addEventListener('contextmenu',e=>e.preventDefault());
+
+document.addEventListener('keydown',e=>{
+  shiftDown=e.shiftKey;
+  const K={r:'road',h:'house',a:'apartment',t:'tower',s:'shop',o:'office',f:'factory',p:'park',e:'powerplant',1:'school',2:'hospital',3:'police',4:'firestation'};
+  if(K[e.key])sel(K[e.key]);
+  if(e.key==='Escape'){G.selB=null;G.bd=false;renderUI();}
+  if(e.key==='Delete')togBD();
+});
+document.addEventListener('keyup',e=>{shiftDown=e.shiftKey;});
+
+// Zoom molette
+cw.addEventListener('wheel',e=>{
+  // Simple pan with wheel
+  camX-=e.deltaX*.5; camY-=e.deltaY*.5;
+  renderFrame();
+},{passive:true});
+
+function sel(t){G.selB=t;G.bd=false;renderUI();}
+function togBD(){G.bd=!G.bd;G.selB=null;renderUI();}
+
+// ═══════════════════════════════════════════════════════
+//  BOUCLE PRINCIPALE
+// ═══════════════════════════════════════════════════════
+let raf;
+function loop(ts){
+  updateAgents(ts);
+  updateParticles();
+  renderFrame();
+  raf=requestAnimationFrame(loop);
+}
+
+// ═══════════════════════════════════════════════════════
+//  DÉMARRAGE — différé pour que le layout CSS soit calculé
+// ═══════════════════════════════════════════════════════
+requestAnimationFrame(function init(){
+  newGame();   // G initialisé en premier
+  resize();    // canvas dimensionné avec G valide
+  requestAnimationFrame(loop);
+});
+</script>
+</body>
+</html>
