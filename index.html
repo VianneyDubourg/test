@@ -1,974 +1,897 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🏙️ CityTycoon V2</title>
+<title>Canada 4×4 – Off-Road Isométrique</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:#0a0a14;color:#e0e0e0;font-family:'Segoe UI',sans-serif;overflow:hidden;height:100vh;display:flex;flex-direction:column;user-select:none}
-#hud{display:flex;align-items:center;background:#0f0f28;border-bottom:2px solid #1a1a50;height:54px;flex-shrink:0;padding:0 12px;gap:16px}
-#hud-title{font-size:1.3em;font-weight:900;color:#e94560;letter-spacing:2px;white-space:nowrap;margin-right:8px}
-.hs{display:flex;flex-direction:column;align-items:center;min-width:80px}
-.hs-l{font-size:.58em;color:#555;text-transform:uppercase;letter-spacing:.8px}
-.hs-v{font-size:.98em;font-weight:700;white-space:nowrap}
-.green{color:#2ecc71}.red{color:#e74c3c}.blue{color:#3498db}.yellow{color:#f1c40f}.orange{color:#e67e22}.white{color:#fff}
-#main{flex:1;display:flex;overflow:hidden}
-#cw{flex:1;position:relative;overflow:hidden;cursor:crosshair}
-#cw.grabbing{cursor:grabbing}
-canvas{position:absolute;top:0;left:0;display:block}
-#pop-float{position:absolute;background:rgba(0,0,50,.85);border:1.5px solid #3498db;border-radius:999px;padding:3px 12px;font-size:.95em;font-weight:700;color:#3498db;pointer-events:none;z-index:10;white-space:nowrap;transform:translate(-50%,-50%);transition:top .5s,left .5s}
-#msgs{position:absolute;bottom:8px;left:8px;pointer-events:none;z-index:20;display:flex;flex-direction:column-reverse;gap:3px;max-width:380px}
-.msg{background:rgba(5,5,20,.9);border-radius:5px;padding:5px 9px;font-size:.75em;animation:fup 4s ease forwards}
-.mi{border-left:3px solid #3498db;color:#5dade2}.ms{border-left:3px solid #2ecc71;color:#2ecc71}.mw{border-left:3px solid #f39c12;color:#f39c12}.me{border-left:3px solid #e74c3c;color:#e74c3c}
-@keyframes fup{0%{opacity:0;transform:translateY(8px)}12%{opacity:1;transform:none}75%{opacity:1}100%{opacity:0}}
-#right{width:275px;background:#0f0f28;border-left:2px solid #1a1a50;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
-#ri{flex:1;overflow-y:auto;padding:9px}
-#ri::-webkit-scrollbar{width:4px}
-#ri::-webkit-scrollbar-thumb{background:#1a1a50;border-radius:2px}
-.panel{background:#080820;border:1px solid #1a1a50;border-radius:7px;padding:9px;margin-bottom:8px}
-.pt{font-size:.65em;text-transform:uppercase;letter-spacing:1px;color:#444;margin-bottom:7px}
-.quest{background:#0c0c2a;border:1px solid #1a1a50;border-radius:5px;padding:7px;margin-bottom:4px;transition:border-color .3s}
-.quest.active{border-color:#e94560}
-.quest.done{border-color:#2ecc71;opacity:.55}
-.qt{font-weight:700;font-size:.82em;margin-bottom:2px}
-.qd{font-size:.72em;color:#777;line-height:1.35}
-.qpb{margin-top:5px;height:3px;background:#1a1a50;border-radius:2px;overflow:hidden}
-.qpbf{height:100%;background:linear-gradient(90deg,#e94560,#f39c12);transition:width .4s}
-.qr{font-size:.68em;color:#f4d03f;margin-top:3px}
-.ev{padding:6px 9px;border-radius:5px;margin-bottom:4px;font-size:.78em;border:1px solid;line-height:1.3}
-.ev-fire{background:#2a0800;border-color:#e74c3c;color:#e87968}
-.ev-crime{background:#180020;border-color:#9b59b6;color:#bb8fce}
-.ev-fest{background:#001a00;border-color:#2ecc71;color:#7dcea0}
-.ev-storm{background:#001428;border-color:#3498db;color:#7fb3d3}
-.bb{display:flex;align-items:center;width:100%;padding:5px 7px;margin-bottom:3px;background:#0c0c2a;border:1px solid #1a1a50;border-radius:5px;color:#ccc;cursor:pointer;font-size:.77em;text-align:left;transition:.1s}
-.bb:hover{background:#1a1a50;border-color:#53d8fb}
-.bb.on{background:#e94560!important;border-color:#ff6b6b!important;color:#fff}
-.bb.cant{opacity:.3;cursor:not-allowed;pointer-events:none}
-.bi{font-size:1.08em;margin-right:6px;min-width:18px}
-.bn{font-weight:700}.bc{color:#f4d03f;font-size:.71em;margin-top:1px}
-.cat{margin-bottom:9px}
-.ct{font-size:.63em;text-transform:uppercase;letter-spacing:.8px;color:#444;margin-bottom:4px}
-#bdbtn{width:100%;padding:6px;background:#300;border:1px solid #922b21;border-radius:5px;color:#e74c3c;cursor:pointer;font-size:.77em;margin-bottom:7px;transition:.1s}
-#bdbtn:hover,#bdbtn.on{background:#e74c3c;color:#fff;border-color:#e74c3c}
-#speeds{display:flex;gap:3px;margin-bottom:7px}
-.spd{flex:1;padding:4px 2px;background:#0c0c2a;border:1px solid #1a1a50;border-radius:4px;color:#aaa;cursor:pointer;font-size:.72em;transition:.1s}
-.spd:hover,.spd.on{background:#e94560;border-color:#e94560;color:#fff}
-.trow{margin-bottom:8px}
-.trow label{display:flex;justify-content:space-between;font-size:.73em;color:#777;margin-bottom:3px}
-input[type=range]{width:100%;accent-color:#e94560;cursor:pointer}
-#modal{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:999;display:none;align-items:center;justify-content:center}
-#mbox{background:#0f0f28;border:2px solid #e94560;border-radius:14px;padding:28px;max-width:440px;text-align:center}
-#mbox h2{color:#e94560;font-size:1.8em;margin-bottom:10px}
-#mbox p{color:#aaa;margin-bottom:18px;line-height:1.6;font-size:.88em}
-#mbox button{padding:10px 26px;background:#e94560;border:none;border-radius:7px;color:#fff;font-size:.95em;cursor:pointer}
-#mbox button:hover{background:#c0392b}
-#tooltip{position:fixed;background:rgba(5,5,25,.95);border:1px solid #3498db;border-radius:6px;padding:7px 10px;font-size:.76em;pointer-events:none;z-index:100;display:none;line-height:1.5;max-width:190px}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
+canvas { display:block; }
 </style>
 </head>
 <body>
-<div id="hud">
-  <div id="hud-title">🏙️ CITYTYCOON V2</div>
-  <div class="hs"><div class="hs-l">💰 Argent</div><div class="hs-v white" id="h-money">$50 000</div></div>
-  <div class="hs"><div class="hs-l">👥 Population</div><div class="hs-v blue" id="h-pop">0</div></div>
-  <div class="hs"><div class="hs-l">😊 Bonheur</div><div class="hs-v" id="h-hap">50%</div></div>
-  <div class="hs"><div class="hs-l">⚡ Énergie</div><div class="hs-v" id="h-pwr">0/0</div></div>
-  <div class="hs"><div class="hs-l">📈 Revenu/mois</div><div class="hs-v" id="h-inc">+$0</div></div>
-  <div class="hs"><div class="hs-l">🗓️ Date</div><div class="hs-v yellow" id="h-date">Jan An 1</div></div>
-  <div class="hs" style="min-width:120px"><div class="hs-l">🏆 Objectif</div><div class="hs-v orange" id="h-obj">5 000 hab.</div></div>
-</div>
-<div id="main">
-  <div id="cw">
-    <canvas id="world"></canvas>
-    <div id="pop-float">👥 0 habitants</div>
-    <div id="msgs"></div>
-  </div>
-  <div id="right">
-    <div id="ri">
-      <div class="panel" id="qpanel"><div class="pt">🎯 Objectifs & Compétences</div><div id="qlist"></div></div>
-      <div class="panel" id="epanel" style="display:none"><div class="pt">⚠️ Événements Actifs</div><div id="elist"></div></div>
-      <div class="panel">
-        <div class="pt">⚙️ Contrôles</div>
-        <div id="speeds">
-          <button class="spd" onclick="setSpd(0)">⏸</button>
-          <button class="spd on" onclick="setSpd(1)">▶ Lent</button>
-          <button class="spd" onclick="setSpd(2)">▶▶</button>
-          <button class="spd" onclick="setSpd(3)">▶▶▶</button>
-        </div>
-        <div class="trow"><label><span>🏦 Taxes</span><span id="taxv">15%</span></label><input type="range" id="taxs" min="5" max="35" value="15"></div>
-        <button id="bdbtn" onclick="togBD()">🔨 Démolition (Shift+clic)</button>
-      </div>
-      <div class="panel">
-        <div class="pt">🏗️ Constructions</div>
-        <div class="cat"><div class="ct">Infrastructure</div>
-          <button class="bb" id="b-road" onclick="sel('road')"><span class="bi">🛣️</span><div><div class="bn">Route</div><div class="bc">$100</div></div></button>
-          <button class="bb" id="b-powerplant" onclick="sel('powerplant')"><span class="bi">⚡</span><div><div class="bn">Centrale Électrique</div><div class="bc">$6 000 · -$250/mois</div></div></button>
-        </div>
-        <div class="cat"><div class="ct">Résidentiel</div>
-          <button class="bb" id="b-house" onclick="sel('house')"><span class="bi">🏠</span><div><div class="bn">Maison</div><div class="bc">$500 · 6 hab.</div></div></button>
-          <button class="bb" id="b-apartment" onclick="sel('apartment')"><span class="bi">🏢</span><div><div class="bn">Appartement</div><div class="bc">$2 000 · 25 hab.</div></div></button>
-          <button class="bb" id="b-tower" onclick="sel('tower')"><span class="bi">🏙️</span><div><div class="bn">Tour Résidentielle</div><div class="bc">$8 000 · 100 hab.</div></div></button>
-        </div>
-        <div class="cat"><div class="ct">Commercial</div>
-          <button class="bb" id="b-shop" onclick="sel('shop')"><span class="bi">🏬</span><div><div class="bn">Commerce</div><div class="bc">$1 500 · +$250/mois</div></div></button>
-          <button class="bb" id="b-office" onclick="sel('office')"><span class="bi">🏦</span><div><div class="bn">Bureau</div><div class="bc">$4 000 · +$500/mois</div></div></button>
-          <button class="bb" id="b-factory" onclick="sel('factory')"><span class="bi">🏭</span><div><div class="bn">Usine</div><div class="bc">$3 000 · +$600/mois · pollue</div></div></button>
-        </div>
-        <div class="cat"><div class="ct">Loisirs</div>
-          <button class="bb" id="b-park" onclick="sel('park')"><span class="bi">🌳</span><div><div class="bn">Parc</div><div class="bc">$400 · +Bonheur</div></div></button>
-          <button class="bb" id="b-stadium" onclick="sel('stadium')"><span class="bi">🏟️</span><div><div class="bn">Stade</div><div class="bc">$10 000 · +Bonheur max</div></div></button>
-        </div>
-        <div class="cat"><div class="ct">Services Publics</div>
-          <button class="bb" id="b-school" onclick="sel('school')"><span class="bi">🏫</span><div><div class="bn">École</div><div class="bc">$3 500 · -$120/mois</div></div></button>
-          <button class="bb" id="b-hospital" onclick="sel('hospital')"><span class="bi">🏥</span><div><div class="bn">Hôpital</div><div class="bc">$6 000 · -$250/mois</div></div></button>
-          <button class="bb" id="b-police" onclick="sel('police')"><span class="bi">👮</span><div><div class="bn">Commissariat</div><div class="bc">$2 500 · -$100/mois</div></div></button>
-          <button class="bb" id="b-firestation" onclick="sel('firestation')"><span class="bi">🚒</span><div><div class="bn">Caserne Pompiers</div><div class="bc">$2 500 · -$100/mois</div></div></button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-<div id="modal"><div id="mbox"><h2 id="mt"></h2><p id="mp"></p><button onclick="restart()">🔄 Nouvelle Partie</button></div></div>
-<div id="tooltip"></div>
+<canvas id="c"></canvas>
 <script>
-// ═══════════════════════════════════════════════════════
-//  CONSTANTES
-// ═══════════════════════════════════════════════════════
-const TW=64,TH=32,GW=22,GH=22;
-const MN=['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc'];
-const DEFS={
-  road:       {n:'Route',         cost:100,   up:0,   res:0,  inc:0,  pwr:0, pOut:0,  hap:0,   bh:3,   col:'#666',tc:'#888'},
-  powerplant: {n:'Centrale',      cost:6000,  up:250, res:0,  inc:0,  pwr:0, pOut:70, hap:-5,  bh:32,  col:'#ca6f1e',tc:'#e59866'},
-  house:      {n:'Maison',        cost:500,   up:10,  res:6,  inc:0,  pwr:1, pOut:0,  hap:0,   bh:22,  col:'#1e8449',tc:'#27ae60'},
-  apartment:  {n:'Appartement',   cost:2000,  up:50,  res:25, inc:0,  pwr:3, pOut:0,  hap:0,   bh:42,  col:'#1a5276',tc:'#2980b9'},
-  tower:      {n:'Tour Résid.',   cost:8000,  up:150, res:100,inc:0,  pwr:8, pOut:0,  hap:0,   bh:72,  col:'#0e3251',tc:'#1a5276'},
-  shop:       {n:'Commerce',      cost:1500,  up:30,  res:0,  inc:250,pwr:2, pOut:0,  hap:5,   bh:20,  col:'#7d6608',tc:'#d4ac0d'},
-  office:     {n:'Bureau',        cost:4000,  up:80,  res:0,  inc:500,pwr:4, pOut:0,  hap:0,   bh:38,  col:'#4a235a',tc:'#7d3c98'},
-  factory:    {n:'Usine',         cost:3000,  up:100, res:0,  inc:600,pwr:5, pOut:0,  hap:-20, bh:26,  col:'#424949',tc:'#7f8c8d'},
-  park:       {n:'Parc',          cost:400,   up:5,   res:0,  inc:0,  pwr:0, pOut:0,  hap:20,  bh:0,   col:'#1e8449',tc:'#27ae60'},
-  stadium:    {n:'Stade',         cost:10000, up:300, res:0,  inc:0,  pwr:6, pOut:0,  hap:35,  bh:26,  col:'#0e6655',tc:'#1abc9c'},
-  school:     {n:'École',         cost:3500,  up:120, res:0,  inc:0,  pwr:2, pOut:0,  hap:15,  bh:24,  col:'#4a235a',tc:'#8e44ad'},
-  hospital:   {n:'Hôpital',       cost:6000,  up:250, res:0,  inc:0,  pwr:3, pOut:0,  hap:22,  bh:26,  col:'#7b241c',tc:'#cb4335'},
-  police:     {n:'Commissariat',  cost:2500,  up:100, res:0,  inc:0,  pwr:1, pOut:0,  hap:8,   bh:20,  col:'#154360',tc:'#1f618d'},
-  firestation:{n:'Caserne',       cost:2500,  up:100, res:0,  inc:0,  pwr:1, pOut:0,  hap:8,   bh:20,  col:'#641e16',tc:'#922b21'},
-};
+"use strict";
+const C = document.getElementById('c');
+const ctx = C.getContext('2d');
+C.width = 900; C.height = 600;
+const W = 900, H = 600;
+const TW = 64, TH = 32;
+const ENGINE_FORCE = 0.0016;
 
-const QUESTS=[
-  {id:'q1', title:'⚡ Construire une centrale électrique',
-   desc:'Sans électricité, rien ne fonctionne dans votre ville!',
-   hint:'Commencez par placer une centrale.', check:()=>cnt('powerplant')>0, reward:3000, ms:0},
-  {id:'q2', title:'🛣️ Tracer 5 routes',
-   desc:'Les routes permettent à vos habitants et véhicules de circuler.',
-   hint:'Tracez des routes pour relier vos futurs bâtiments.', check:()=>cnt('road')>=5, reward:1000, ms:0},
-  {id:'q3', title:'🏠 Construire 3 maisons',
-   desc:'Vos premiers habitants ont besoin de logements alimentés en électricité.',
-   hint:'Assurez-vous que les maisons sont proches de la centrale.', check:()=>cnt('house')>=3, reward:2000, ms:0},
-  {id:'q4', title:'👥 Atteindre 100 habitants',
-   desc:'Votre ville grandit! Continuez à construire des logements.',
-   hint:'Plus de logements = plus d\'habitants.', check:()=>G.pop>=100, reward:5000, ms:1},
-  {id:'q5', title:'🚒 Construire une caserne de pompiers',
-   desc:'À partir de 100 habitants, des incendies peuvent éclater! Protégez votre ville.',
-   hint:'Placez une caserne avant qu\'il ne soit trop tard.', check:()=>cnt('firestation')>0, reward:3000, ms:1},
-  {id:'q6', title:'🏫 Construire une école',
-   desc:'L\'éducation améliore le bonheur et accélère la croissance de la population.',
-   hint:'Une école dessert les bâtiments dans un rayon de 5 cases.', check:()=>cnt('school')>0, reward:4000, ms:2},
-  {id:'q7', title:'👮 Construire un commissariat',
-   desc:'La criminalité augmente avec la population. Un commissariat est indispensable.',
-   hint:'Placez-le au centre de votre ville.', check:()=>cnt('police')>0, reward:4000, ms:2},
-  {id:'q8', title:'👥 Atteindre 500 habitants',
-   desc:'Une vraie ville se profile! Équilibrez logements, commerces et services.',
-   hint:'Les appartements logent 25 personnes, les tours 100.', check:()=>G.pop>=500, reward:10000, ms:2},
-  {id:'q9', title:'🏥 Construire un hôpital',
-   desc:'La santé de vos habitants est primordiale pour atteindre 5 000 habitants.',
-   hint:'L\'hôpital augmente beaucoup le bonheur.', check:()=>cnt('hospital')>0, reward:5000, ms:3},
-  {id:'q10',title:'🏆 Atteindre 5 000 habitants — VICTOIRE!',
-   desc:'Félicitations! Vous avez bâti une métropole florissante!',
-   hint:'Construisez des tours résidentielles pour loger beaucoup d\'habitants.', check:()=>G.pop>=5000, reward:50000, ms:3},
+// ── Tile type constants ───────────────────────────────────────────────────────
+const T_GRASS=0,T_DIRT=1,T_MUD=2,T_ROCK=3,T_SNOW=4,T_ICE=5,T_ROAD=6,T_WATER=7,T_SAND=8;
+const TILE_NAME = ['Grass','Dirt','Mud','Rock','Snow','Ice','Road','Water','Sand'];
+const TILE_COL  = ['#4a7c3f','#9b7432','#5a4530','#7a7a7a','#dde8f0','#aad4f0','#4a4a52','#2255bb','#c8a850'];
+
+// ── Tire definitions ──────────────────────────────────────────────────────────
+// grip[tileType]: grass,dirt,mud,rock,snow,ice,road,water,sand
+const TIRES = [
+  { name:'Sport',    col:'#e02020', grip:[0.72,0.68,0.28,0.55,0.25,0.10,0.96,0,0.42] },
+  { name:'Balloon',  col:'#f8c020', grip:[0.80,0.78,0.65,0.70,0.62,0.32,0.82,0,0.72] },
+  { name:'Studded',  col:'#7080f0', grip:[0.68,0.72,0.52,0.60,0.92,0.82,0.76,0,0.58] },
+  { name:'Off-Road', col:'#50b030', grip:[0.84,0.90,0.82,0.88,0.58,0.28,0.74,0,0.82] },
 ];
 
-const EVDEFS=[
-  {id:'fire',  label:'🔥 Incendie!',            cls:'ev-fire',  minPop:100, w:3, dur:3,
-   desc:'Un bâtiment est en flammes! Une caserne proche peut l\'éteindre.'},
-  {id:'crime', label:'🔫 Vague de criminalité',  cls:'ev-crime', minPop:200, w:2, dur:2,
-   desc:'La criminalité explose! Un commissariat réduit l\'impact.'},
-  {id:'fest',  label:'🎪 Festival de la ville!', cls:'ev-fest',  minPop:150, w:4, dur:1,
-   desc:'Festival! +$5 000 et +10 bonheur pour ce mois.'},
-  {id:'storm', label:'⛈️ Tempête violente!',     cls:'ev-storm', minPop:50,  w:2, dur:2,
-   desc:'Tempête! Certains bâtiments perdent leur électricité temporairement.'},
+// ── Drive mode definitions ────────────────────────────────────────────────────
+const DRIVES = [
+  { name:'RWD',     grip_mult:0.85, accel:1.00 },
+  { name:'AWD',     grip_mult:1.00, accel:0.95 },
+  { name:'4WD',     grip_mult:1.12, accel:0.88 },
+  { name:'4WD-Low', grip_mult:1.22, accel:0.72 },
 ];
 
-// ═══════════════════════════════════════════════════════
-//  ÉTAT DU JEU
-// ═══════════════════════════════════════════════════════
-let G={};
+// ── Gear ratios ───────────────────────────────────────────────────────────────
+const GEARS = [
+  { ratio:3.5, maxSpd:0.044 },
+  { ratio:2.2, maxSpd:0.078 },
+  { ratio:1.5, maxSpd:0.120 },
+  { ratio:1.0, maxSpd:0.168 },
+  { ratio:0.7, maxSpd:0.230 },
+];
 
-function newGame(){
-  G={
-    grid:Array.from({length:GH},()=>Array(GW).fill(null)),
-    money:50000, pop:0, hap:50, pTotal:0, pUsed:0,
-    mi:0, yr:1, running:true, spd:1,
-    selB:null, bd:false,
-    agents:[], parts:[], events:[],
-    done:new Set(), ms:0,
-    tick:0,
+// ── Level data ────────────────────────────────────────────────────────────────
+// map: 0=grass 1=dirt 2=mud 3=rock 4=snow 5=ice 6=road 7=water 8=sand
+const LEVELS = [
+  {
+    name:'Forêt BC', cols:14, rows:12,
+    sky:['#ff6018','#b02888','#280848'],
+    startG:{x:12,y:10}, finG:{x:1,y:1},
+    animals:[{e:'🦌',gx:5,gy:5},{e:'🐻',gx:8,gy:3},{e:'🐺',gx:3,gy:8}],
+    map:[
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+      [0,1,1,0,0,0,0,0,0,0,0,0,0,0],
+      [0,1,0,0,0,0,0,0,0,0,2,2,0,0],
+      [0,1,1,0,0,7,7,7,7,0,2,1,1,0],
+      [0,0,1,0,0,1,0,0,7,0,0,1,0,0],
+      [0,0,1,1,1,1,0,0,1,1,1,1,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,1,0,0],
+      [0,0,0,0,0,0,0,2,2,1,1,1,0,0],
+      [0,0,0,3,3,3,0,2,0,0,0,0,0,0],
+      [0,0,0,3,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+    ]
+  },
+  {
+    name:'Toundra Yukon', cols:14, rows:12,
+    sky:['#90c8f0','#daeeff','#b0d8f4'],
+    startG:{x:12,y:10}, finG:{x:1,y:1},
+    animals:[{e:'🦌',gx:7,gy:4},{e:'🦌',gx:10,gy:7},{e:'🐺',gx:3,gy:6}],
+    map:[
+      [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+      [4,1,1,4,4,4,4,4,4,4,4,4,4,4],
+      [4,1,4,5,5,4,4,4,4,4,4,4,4,4],
+      [4,1,1,4,5,5,5,4,3,3,4,4,4,4],
+      [4,4,1,4,4,5,4,3,3,4,4,4,4,4],
+      [4,4,1,1,1,1,4,3,4,4,4,4,4,4],
+      [4,4,4,4,4,1,4,4,4,4,4,4,4,4],
+      [4,4,4,4,4,1,1,4,4,4,4,5,4,4],
+      [4,4,4,4,4,4,1,1,4,5,5,4,4,4],
+      [4,4,4,4,4,4,4,1,1,1,4,4,4,4],
+      [4,4,4,4,4,4,4,4,4,1,1,1,4,4],
+      [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+    ]
+  },
+  {
+    name:'Côte Atlantique', cols:16, rows:12,
+    sky:['#005580','#0088bb','#00aadd'],
+    startG:{x:14,y:10}, finG:{x:1,y:1},
+    animals:[{e:'🦌',gx:9,gy:5},{e:'🐻',gx:12,gy:3}],
+    map:[
+      [7,7,8,6,6,6,6,6,6,0,0,0,0,0,0,0],
+      [7,7,8,8,6,0,0,0,6,6,0,0,0,0,0,0],
+      [7,7,8,0,0,0,0,0,0,6,6,0,0,0,0,0],
+      [7,8,8,0,0,0,3,3,0,0,6,6,0,0,0,0],
+      [7,8,0,0,0,3,3,0,0,0,0,6,6,0,0,0],
+      [7,8,8,0,0,0,0,0,0,0,0,0,6,6,0,0],
+      [7,7,8,8,0,0,0,0,0,0,0,0,0,6,6,0],
+      [7,7,8,8,8,0,0,0,0,0,0,0,0,0,6,6],
+      [7,7,7,8,8,8,0,0,0,0,0,0,0,6,6,0],
+      [7,7,7,7,8,8,8,0,0,0,0,0,6,6,0,0],
+      [7,7,7,7,7,8,8,6,6,6,6,6,6,0,0,0],
+      [7,7,7,7,7,7,8,8,8,8,8,0,0,0,0,0],
+    ]
+  }
+];
+
+// ── Game state variables ──────────────────────────────────────────────────────
+let state = 'title';
+let lvlIdx = 0, lvl, lvlMap;
+let car, camX=0, camY=0;
+let timer=0, bestTimes=[Infinity,Infinity,Infinity];
+let waterMsg=0;
+let configOpen=false;
+let animals=[];
+let frame=0;
+const keys={};
+
+// ── Car factory ───────────────────────────────────────────────────────────────
+function makeCar(l) {
+  return {
+    gx: l.startG.x+0.5,
+    gy: l.startG.y+0.5,
+    angle: -Math.PI*0.75,
+    speed: 0,
+    gear: 1,
+    autoGear: true,
+    tireIdx: 3,
+    driveIdx: 1,
+    safeGx: l.startG.x+0.5,
+    safeGy: l.startG.y+0.5,
   };
-  document.getElementById('msgs').innerHTML='';
-  document.getElementById('elist').innerHTML='';
-  document.getElementById('epanel').style.display='none';
-  document.getElementById('modal').style.display='none';
-  addMsg('🏙️ Bienvenue! Suivez les objectifs à droite pour construire votre ville.','i');
-  addMsg('💡 Astuce: commencez par une centrale électrique!','i');
-  buildQuests();
-  setSpd(1);
-  recalc();
-  renderUI();
 }
 
-function cnt(t){let n=0;for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)if(G.grid[y][x]?.type===t)n++;return n;}
-
-// ═══════════════════════════════════════════════════════
-//  CANVAS
-// ═══════════════════════════════════════════════════════
-const cw=document.getElementById('cw');
-const cv=document.getElementById('world');
-const cx=cv.getContext('2d');
-let camX=0,camY=0;
-let hoverGX=-1,hoverGY=-1;
-let shiftDown=false;
-let panStart=null,panCam=null;
-
-function resize(){
-  const w=cw.clientWidth||Math.max(window.innerWidth-280,400);
-  const h=cw.clientHeight||Math.max(window.innerHeight-56,400);
-  cv.width=w; cv.height=h;
-  camX=w/2; camY=50;
-  if(G&&G.grid) renderFrame();
-}
-window.addEventListener('resize',resize);
-
-function g2s(gx,gy){
-  return{x:camX+(gx-gy)*TW/2, y:camY+(gx+gy)*TH/2};
-}
-function s2g(sx,sy){
-  const rx=sx-camX, ry=sy-camY;
-  return{
-    x:Math.round((rx/(TW/2)+ry/(TH/2))/2),
-    y:Math.round((ry/(TH/2)-rx/(TW/2))/2)
+// ── Isometric projection ──────────────────────────────────────────────────────
+function g2s(gx, gy) {
+  return {
+    x: camX + (gx - gy) * TW / 2,
+    y: camY + (gx + gy) * TH / 2
   };
 }
 
-// ═══════════════════════════════════════════════════════
-//  RENDU ISOMÉTRIQUE
-// ═══════════════════════════════════════════════════════
-function renderFrame(){
-  if(!G||!G.grid)return;
-  cx.clearRect(0,0,cv.width,cv.height);
-  cx.fillStyle='#080814';
-  cx.fillRect(0,0,cv.width,cv.height);
+function getTile(gx, gy) {
+  const ix = Math.floor(gx), iy = Math.floor(gy);
+  if (ix < 0 || iy < 0 || ix >= lvl.cols || iy >= lvl.rows) return -1;
+  return lvlMap[iy][ix];
+}
 
-  // Dessin par diagonale (back→front)
-  for(let s=0;s<GW+GH-1;s++){
-    for(let gx=0;gx<GW;gx++){
-      const gy=s-gx;
-      if(gy<0||gy>=GH)continue;
-      drawTile(gx,gy);
+// ── Color utility ─────────────────────────────────────────────────────────────
+function colAdjust(hex, amt) {
+  let r = parseInt(hex.slice(1,3),16);
+  let g = parseInt(hex.slice(3,5),16);
+  let b = parseInt(hex.slice(5,7),16);
+  r = Math.max(0, Math.min(255, r+amt));
+  g = Math.max(0, Math.min(255, g+amt));
+  b = Math.max(0, Math.min(255, b+amt));
+  return '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+}
+
+// ── Rounded rect helper ───────────────────────────────────────────────────────
+function roundRect(x,y,w,h,r,fill,stroke) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
+  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
+  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
+  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.closePath();
+  if (fill) { ctx.fillStyle=fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle=stroke[0]; ctx.lineWidth=stroke[1]; ctx.stroke(); }
+}
+
+// ── Draw iso tile ─────────────────────────────────────────────────────────────
+function drawIsoTile(sx, sy, col) {
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx+TW/2, sy+TH/2);
+  ctx.lineTo(sx, sy+TH);
+  ctx.lineTo(sx-TW/2, sy+TH/2);
+  ctx.closePath();
+  ctx.fillStyle = col;
+  ctx.fill();
+}
+
+function drawIsoBorder(sx, sy, col, lw) {
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx+TW/2, sy+TH/2);
+  ctx.lineTo(sx, sy+TH);
+  ctx.lineTo(sx-TW/2, sy+TH/2);
+  ctx.closePath();
+  ctx.strokeStyle = col;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+}
+
+// ── Draw pine tree ────────────────────────────────────────────────────────────
+function drawPineTree(sx, sy, snow) {
+  ctx.fillStyle = '#5a3215';
+  ctx.fillRect(sx-3, sy-4, 6, 12);
+  const cols = snow
+    ? ['#2a5520','#ddeeff','#3a6a28','#ddeeff']
+    : ['#2a5520','#3a7028','#4a8a32','#55a038'];
+  const ww=[22,18,14,10], hh=[16,14,12,10];
+  for (let i=0; i<4; i++) {
+    const ty = sy - 16 - i*12;
+    ctx.beginPath();
+    ctx.moveTo(sx, ty);
+    ctx.lineTo(sx+ww[i], ty+hh[i]);
+    ctx.lineTo(sx-ww[i], ty+hh[i]);
+    ctx.closePath();
+    ctx.fillStyle = cols[i];
+    ctx.fill();
+  }
+}
+
+// ── Draw rock cluster ─────────────────────────────────────────────────────────
+function drawRockCluster(sx, sy) {
+  ctx.fillStyle = '#6a6a6a';
+  ctx.beginPath(); ctx.ellipse(sx, sy+TH*0.7, 13, 7, 0.2, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#888';
+  ctx.beginPath(); ctx.ellipse(sx-3, sy+TH*0.6, 8, 4, 0.2, 0, Math.PI*2); ctx.fill();
+}
+
+// ── Sky gradient ──────────────────────────────────────────────────────────────
+function drawSky(colors) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  const step = 1 / (colors.length - 1);
+  colors.forEach((c,i) => g.addColorStop(i*step, c));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ── Draw car ──────────────────────────────────────────────────────────────────
+function drawCar() {
+  const a = car.angle;
+  const isoA = Math.atan2((Math.cos(a)+Math.sin(a))*TH, (Math.cos(a)-Math.sin(a))*TW);
+  const p = g2s(car.gx, car.gy);
+  const tire = TIRES[car.tireIdx];
+
+  ctx.save();
+  ctx.translate(p.x, p.y - 6);
+  ctx.rotate(isoA);
+
+  // shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(1, 8, 22, 9, 0, 0, Math.PI*2); ctx.fill();
+
+  // body
+  ctx.fillStyle = tire.col;
+  ctx.fillRect(-20, -10, 40, 20);
+
+  // roof
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(-13, -9, 26, 16);
+
+  // windshield
+  ctx.fillStyle = 'rgba(140,220,255,0.75)';
+  ctx.fillRect(-11, -8, 22, 7);
+
+  // rear window
+  ctx.fillStyle = 'rgba(120,200,240,0.5)';
+  ctx.fillRect(-11, 2, 22, 5);
+
+  // wheels
+  const wheelPos = [[-19,-10],[11,-10],[-19,6],[11,6]];
+  for (const [wx,wy] of wheelPos) {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(wx, wy, 9, 5);
+    ctx.fillStyle = '#555';
+    ctx.fillRect(wx+2, wy+1, 5, 3);
+  }
+
+  ctx.restore();
+}
+
+// ── Draw finish flag ──────────────────────────────────────────────────────────
+function drawFinish(gx, gy) {
+  const p = g2s(gx, gy);
+  // pole
+  ctx.fillStyle = '#aaa';
+  ctx.fillRect(p.x-1, p.y-52, 2, 52);
+  // animated checkered flag
+  const t = frame * 0.04;
+  const sz = 7;
+  for (let r=0; r<3; r++) {
+    for (let cc=0; cc<5; cc++) {
+      const wave = Math.sin(t + cc*0.6) * 4;
+      ctx.fillStyle = (r+cc)%2===0 ? '#fff' : '#111';
+      ctx.fillRect(p.x + cc*sz, p.y - 52 + r*sz + wave, sz, sz);
     }
   }
-
-  // Agents (voitures / habitants)
-  for(const a of G.agents) drawAgent(a);
-
-  // Particules (feu/fumée)
-  for(const p of G.parts) drawPart(p);
-
-  // Hover
-  if(hoverGX>=0&&hoverGX<GW&&hoverGY>=0&&hoverGY<GH){
-    const{x:sx,y:sy}=g2s(hoverGX,hoverGY);
-    cx.beginPath();
-    cx.moveTo(sx,sy); cx.lineTo(sx+TW/2,sy+TH/2);
-    cx.lineTo(sx,sy+TH); cx.lineTo(sx-TW/2,sy+TH/2);
-    cx.closePath();
-    const isBd=G.bd||shiftDown;
-    cx.fillStyle=isBd?'rgba(231,76,60,.3)':'rgba(83,216,251,.2)';
-    cx.fill();
-    cx.strokeStyle=isBd?'#e74c3c':'#53d8fb';
-    cx.lineWidth=1.5; cx.stroke();
-  }
-
-  // Pop badge
-  const mid=g2s(GW/2,GH/2);
-  const pb=document.getElementById('pop-float');
-  pb.style.left=mid.x+'px';
-  pb.style.top=(mid.y-20)+'px';
+  ctx.fillStyle = '#ffe040';
+  ctx.font = 'bold 12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('FIN', p.x+17, p.y-57);
 }
 
-function drawTile(gx,gy){
-  const{x:sx,y:sy}=g2s(gx,gy);
-  const cell=G.grid[gy][gx];
+// ── Render the world ──────────────────────────────────────────────────────────
+function renderWorld() {
+  const cols = lvl.cols, rows = lvl.rows;
 
-  // Sol
-  const g=(gx+gy)%2===0?'#193d1c':'#1b4320';
-  diamond(sx,sy,g,'rgba(0,0,0,.1)');
+  // Tiles in isometric back-to-front order
+  for (let s=0; s<cols+rows-1; s++) {
+    for (let i=0; i<cols; i++) {
+      const j = s - i;
+      if (j < 0 || j >= rows) continue;
+      const tile = lvlMap[j][i];
+      const p = g2s(i, j);
+      const sx = p.x, sy = p.y;
 
-  if(!cell)return;
-  const d=DEFS[cell.type];
-  const powered=cell.pow;
+      // base color with subtle checkerboard variation
+      let col = TILE_COL[tile] || '#4a7c3f';
+      if ((i+j)%2===1) col = colAdjust(col, 10);
 
-  if(cell.type==='road'){drawRoad(sx,sy);return;}
-  if(cell.type==='park'){drawPark(sx,sy,powered);return;}
+      drawIsoTile(sx, sy, col);
+      drawIsoBorder(sx, sy, 'rgba(0,0,0,0.12)', 0.5);
 
-  const bh=d.bh;
-  const col=powered?d.col:shadeHex(d.col,-60);
-  const tc =powered?d.tc:shadeHex(d.tc,-60);
+      // Tile-specific decorations
+      if (tile === T_GRASS) {
+        if ((i*11+j*7)%13===0) {
+          ctx.fillStyle = '#3a6228';
+          ctx.font = '9px serif';
+          ctx.textAlign = 'center';
+          ctx.fillText('╷╷╷', sx, sy+TH);
+        }
+        if ((i*17+j*13)%11===0) drawPineTree(sx, sy-TH/2, false);
 
-  isoBox(sx,sy,bh,col,tc,cell.fire);
+      } else if (tile === T_SNOW) {
+        if ((i*13+j*9)%9===0) drawPineTree(sx, sy-TH/2, true);
+        if ((i*7+j*5)%5===0) {
+          ctx.fillStyle = 'rgba(255,255,255,0.6)';
+          ctx.beginPath(); ctx.arc(sx-4, sy+TH*0.5, 2, 0, Math.PI*2); ctx.fill();
+        }
 
-  // Fenêtres pour les immeubles hauts
-  if(bh>25&&powered&&!cell.fire) drawWins(sx,sy,bh,cell.type);
+      } else if (tile === T_ROCK) {
+        if ((i*5+j*3)%3===0) drawRockCluster(sx, sy);
 
-  // Indicateur hors-tension
-  if(!powered&&d.pwr>0){
-    cx.font='11px serif'; cx.textAlign='right'; cx.textBaseline='top';
-    cx.fillText('🔴',sx+TW/2-2,sy+TH/2-bh+2);
-  }
-}
+      } else if (tile === T_WATER) {
+        const wt = frame * 0.025;
+        const alpha = 0.25 + 0.12*Math.sin(wt+(i+j)*0.7);
+        ctx.fillStyle = `rgba(80,140,240,${alpha})`;
+        ctx.beginPath(); ctx.ellipse(sx, sy+TH*0.65, 18, 6, 0, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = `rgba(150,200,255,${0.3+0.15*Math.sin(wt+i)})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(sx-10, sy+TH*0.6); ctx.lineTo(sx+10, sy+TH*0.6);
+        ctx.stroke();
 
-function diamond(sx,sy,fill,stroke){
-  cx.beginPath();
-  cx.moveTo(sx,sy); cx.lineTo(sx+TW/2,sy+TH/2);
-  cx.lineTo(sx,sy+TH); cx.lineTo(sx-TW/2,sy+TH/2);
-  cx.closePath();
-  cx.fillStyle=fill; cx.fill();
-  if(stroke){cx.strokeStyle=stroke;cx.lineWidth=.5;cx.stroke();}
-}
+      } else if (tile === T_ICE) {
+        ctx.fillStyle = 'rgba(180,230,255,0.45)';
+        ctx.beginPath(); ctx.ellipse(sx-4, sy+TH*0.55, 10, 4, -0.3, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(220,245,255,0.3)';
+        ctx.beginPath(); ctx.ellipse(sx+6, sy+TH*0.7, 6, 3, 0.3, 0, Math.PI*2); ctx.fill();
 
-function isoBox(sx,sy,bh,col,tc,fire){
-  const lc=shadeHex(col,-25), rc=shadeHex(col,-12);
+      } else if (tile === T_MUD) {
+        ctx.fillStyle = 'rgba(60,35,15,0.4)';
+        ctx.beginPath(); ctx.ellipse(sx+3, sy+TH*0.65, 12, 5, 0.2, 0, Math.PI*2); ctx.fill();
 
-  // Face gauche
-  cx.beginPath();
-  cx.moveTo(sx-TW/2,sy+TH/2);
-  cx.lineTo(sx,sy+TH);
-  cx.lineTo(sx,sy+TH-bh);
-  cx.lineTo(sx-TW/2,sy+TH/2-bh);
-  cx.closePath();
-  cx.fillStyle=fire?'#922b21':lc; cx.fill();
-  cx.strokeStyle='rgba(0,0,0,.25)'; cx.lineWidth=.5; cx.stroke();
+      } else if (tile === T_ROAD) {
+        if ((i+j)%4===0) {
+          ctx.fillStyle = 'rgba(255,255,150,0.3)';
+          ctx.fillRect(sx-3, sy+TH*0.45, 6, 4);
+        }
 
-  // Face droite
-  cx.beginPath();
-  cx.moveTo(sx,sy+TH);
-  cx.lineTo(sx+TW/2,sy+TH/2);
-  cx.lineTo(sx+TW/2,sy+TH/2-bh);
-  cx.lineTo(sx,sy+TH-bh);
-  cx.closePath();
-  cx.fillStyle=fire?'#e74c3c':rc; cx.fill();
-  cx.strokeStyle='rgba(0,0,0,.25)'; cx.lineWidth=.5; cx.stroke();
-
-  // Toit
-  cx.beginPath();
-  cx.moveTo(sx,sy+TH-bh);
-  cx.lineTo(sx+TW/2,sy+TH/2-bh);
-  cx.lineTo(sx,sy-bh);
-  cx.lineTo(sx-TW/2,sy+TH/2-bh);
-  cx.closePath();
-  cx.fillStyle=fire?'#f39c12':tc; cx.fill();
-  cx.strokeStyle='rgba(0,0,0,.15)'; cx.lineWidth=.5; cx.stroke();
-}
-
-function drawRoad(sx,sy){
-  diamond(sx,sy,'#3a3a3a',null);
-  cx.fillStyle='#555';
-  cx.fillRect(sx-2,sy+TH/2-1,4,TH/2+2);
-  cx.fillRect(sx-TW/4,sy+TH/2-1,TW/2,2);
-}
-
-function drawPark(sx,sy,powered){
-  diamond(sx,sy,'#145a32','rgba(0,0,0,.1)');
-  if(powered){
-    cx.font=Math.floor(TH*.8)+'px serif';
-    cx.textAlign='center'; cx.textBaseline='middle';
-    cx.fillText('🌳',sx,sy+TH/2+2);
-  }
-}
-
-function drawWins(sx,sy,bh,type){
-  const cols={apartment:'#aed6f1',tower:'#85c1e9',office:'#d2b4de',hospital:'#f9ebea'};
-  const c=cols[type]||'#aaa';
-  cx.fillStyle=c;
-  const rows=Math.min(Math.floor(bh/10),4);
-  for(let r=0;r<rows;r++){
-    const wy=sy+TH-bh+(r*10)+4;
-    cx.fillRect(sx-TW/2+6,wy,5,4);
-    cx.fillRect(sx+TW/2-11,wy,5,4);
-  }
-}
-
-function drawAgent(a){
-  const{x:sx,y:sy}=g2s(a.gx,a.gy);
-  // Interpolated position
-  const px=sx+(a.ox||0), py=sy+(a.oy||0);
-
-  if(a.type==='car'){
-    cx.save();
-    cx.translate(px,py+TH/2);
-    cx.fillStyle=a.color;
-    cx.fillRect(-5,-3,10,5);
-    cx.fillStyle='#111';
-    cx.fillRect(-4,1,3,2); cx.fillRect(2,1,3,2);
-    cx.restore();
-  } else {
-    // Person
-    cx.beginPath();
-    cx.arc(px,py+TH/2-2,3.5,0,Math.PI*2);
-    cx.fillStyle=a.color; cx.fill();
-    cx.strokeStyle='rgba(0,0,0,.4)'; cx.lineWidth=1; cx.stroke();
-  }
-}
-
-function drawPart(p){
-  cx.globalAlpha=p.life/p.maxLife;
-  cx.beginPath();
-  cx.arc(p.x,p.y,p.size,0,Math.PI*2);
-  cx.fillStyle=p.col; cx.fill();
-  cx.globalAlpha=1;
-}
-
-// ═══════════════════════════════════════════════════════
-//  HELPER COULEURS
-// ═══════════════════════════════════════════════════════
-function shadeHex(hex,amt){
-  const n=parseInt(hex.replace('#',''),16);
-  const r=Math.max(0,Math.min(255,(n>>16)+amt));
-  const g=Math.max(0,Math.min(255,((n>>8)&0xff)+amt));
-  const b=Math.max(0,Math.min(255,(n&0xff)+amt));
-  return'#'+[r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
-}
-
-// ═══════════════════════════════════════════════════════
-//  CONSTRUIRE / DÉMOLIR
-// ═══════════════════════════════════════════════════════
-function build(x,y,type){
-  if(x<0||x>=GW||y<0||y>=GH)return;
-  if(G.grid[y][x]){addMsg('⚠️ Emplacement occupé!','w');return;}
-  const d=DEFS[type];
-  if(G.money<d.cost){addMsg(`❌ Fonds insuffisants! Besoin: $${fmt(d.cost)}`,'e');return;}
-  G.money-=d.cost;
-  G.grid[y][x]={type,pow:d.pwr===0,fire:false};
-  recalc();
-  spawnAgents();
-  checkQuests();
-  renderFrame();
-}
-
-function demolish(x,y){
-  if(x<0||x>=GW||y<0||y>=GH)return;
-  if(!G.grid[y][x])return;
-  const ref=Math.floor(DEFS[G.grid[y][x].type].cost*.25);
-  G.money+=ref;
-  G.grid[y][x]=null;
-  addMsg(`🔨 Démoli — remboursement $${fmt(ref)}`,'i');
-  recalc(); renderFrame();
-}
-
-// ═══════════════════════════════════════════════════════
-//  CALCULS
-// ═══════════════════════════════════════════════════════
-function recalc(){
-  // Puissance
-  G.pTotal=0; G.pUsed=0;
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-    const c=G.grid[y][x]; if(!c)continue;
-    G.pTotal+=DEFS[c.type].pOut;
-  }
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-    const c=G.grid[y][x]; if(!c)continue;
-    const p=DEFS[c.type].pwr;
-    if(p===0){c.pow=true;continue;}
-    if(G.pUsed+p<=G.pTotal){c.pow=true;G.pUsed+=p;}
-    else c.pow=false;
-  }
-  renderUI();
-}
-
-function calcHap(){
-  let h=40;
-  const tax=+document.getElementById('taxs').value;
-  h-=Math.max(0,tax-20)*1.5;
-  h+=Math.max(0,10-tax)*1;
-  let pk=0,sc=0,ho=0,po=0,fi=0,st=0,fa=0,unp=0;
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-    const c=G.grid[y][x];if(!c)continue;
-    const t=c.type;
-    if(t==='park')pk++;
-    if(t==='school')sc++;
-    if(t==='hospital')ho++;
-    if(t==='police')po++;
-    if(t==='firestation')fi++;
-    if(t==='stadium')st++;
-    if(t==='factory')fa++;
-    if(!c.pow&&DEFS[t].pwr>0)unp++;
-  }
-  h+=Math.min(pk*5,25)+Math.min(sc*10,30)+Math.min(ho*12,36);
-  h+=Math.min(po*6,18)+Math.min(fi*6,18)+Math.min(st*20,40);
-  h-=Math.min(fa*4,35)+unp*3;
-  // Événements actifs
-  for(const ev of G.events){
-    if(ev.id==='fire')h-=15;
-    if(ev.id==='crime')h-=12;
-    if(ev.id==='storm')h-=8;
-    if(ev.id==='fest')h+=10;
-  }
-  return Math.max(0,Math.min(100,Math.round(h)));
-}
-
-function calcInc(){
-  const tax=+document.getElementById('taxs').value/100;
-  let inc=Math.floor(G.pop*60*tax);
-  let upk=0,com=0;
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-    const c=G.grid[y][x];if(!c)continue;
-    const d=DEFS[c.type];
-    upk+=d.up;
-    if(c.pow&&d.inc>0)com+=d.inc;
-  }
-  return inc+com-upk;
-}
-
-function calcCap(){
-  let cap=0;
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-    const c=G.grid[y][x];if(!c||!c.pow)continue;
-    cap+=DEFS[c.type].res;
-  }
-  return cap;
-}
-
-// ═══════════════════════════════════════════════════════
-//  TICK MENSUEL
-// ═══════════════════════════════════════════════════════
-let ticker=null;
-
-function monthTick(){
-  if(!G.running)return;
-  G.hap=calcHap();
-  const cap=calcCap();
-  const gr=G.hap>65?.12:G.hap>45?.06:G.hap>25?.01:-.03;
-  G.pop=Math.max(0,Math.min(cap,Math.floor(G.pop+cap*gr)));
-  const inc=calcInc();
-  G.money+=inc;
-  G.mi++;
-  if(G.mi>=12){G.mi=0;G.yr++;}
-  if(inc>=0) addMsg(`📅 ${MN[G.mi]} An${G.yr}: +$${fmt(inc)} | 👥${fmt(G.pop)}`,'s');
-  else addMsg(`📅 ${MN[G.mi]} An${G.yr}: $${fmt(inc)} ⚠️DÉFICIT | 👥${fmt(G.pop)}`,'w');
-
-  // Réduction durée événements
-  G.events=G.events.filter(ev=>{ev.rem--;return ev.rem>0;});
-
-  // Nouveaux événements aléatoires
-  if(G.pop>=50) tryEvent();
-
-  if(G.money<-25000){endGame(false);return;}
-  if(G.pop>=5000){endGame(true);return;}
-
-  checkQuests();
-  recalc();
-  renderEvents();
-  updatePopBadge();
-  renderFrame();
-}
-
-function setSpd(s){
-  G.spd=s;
-  clearInterval(ticker);
-  document.querySelectorAll('.spd').forEach((b,i)=>b.className='spd'+(i===s?' on':''));
-  if(s>0&&G.running){
-    const ms=[0,9000,4500,1800][s];
-    ticker=setInterval(monthTick,ms);
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-//  ÉVÉNEMENTS ALÉATOIRES
-// ═══════════════════════════════════════════════════════
-function tryEvent(){
-  const pool=EVDEFS.filter(e=>G.pop>=e.minPop&&!G.events.find(a=>a.id===e.id));
-  if(!pool.length)return;
-  const total=pool.reduce((s,e)=>s+e.w,0);
-  if(Math.random()*total>pool[0].w*1.5)return; // ~1/3 chance
-  const r=Math.random()*total;
-  let acc=0;
-  for(const e of pool){
-    acc+=e.w;
-    if(r<=acc){
-      triggerEvent(e);
-      break;
-    }
-  }
-}
-
-function triggerEvent(def){
-  const ev={...def, rem:def.dur};
-  G.events.push(ev);
-  addMsg(`⚠️ ${def.label} — ${def.desc}`,'w');
-
-  if(def.id==='fire'){
-    // Trouver un bâtiment non-route à mettre en feu
-    const buildings=[];
-    for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-      const c=G.grid[y][x];
-      if(c&&c.type!=='road'&&c.type!=='park'&&!c.fire)buildings.push({x,y,c});
-    }
-    if(buildings.length){
-      const b=buildings[Math.floor(Math.random()*buildings.length)];
-      b.c.fire=true;
-      // Vérifier si caserne proche (rayon 5)
-      const hasFS=hasNearby('firestation',b.x,b.y,5);
-      if(hasFS){
-        setTimeout(()=>{
-          if(G.grid[b.y]&&G.grid[b.y][b.x])G.grid[b.y][b.x].fire=false;
-          addMsg('🚒 L\'incendie a été maîtrisé par la caserne!','s');
-          renderFrame();
-        },4000);
-      } else {
-        // Destruction après 6s
-        setTimeout(()=>{
-          if(G.grid[b.y]&&G.grid[b.y][b.x]){
-            G.grid[b.y][b.x]=null;
-            addMsg('🔥 Un bâtiment a été détruit! Construisez une caserne!','e');
-          }
-          recalc(); renderFrame();
-        },6000);
+      } else if (tile === T_SAND) {
+        if ((i*9+j*11)%7===0) {
+          ctx.fillStyle = 'rgba(180,130,40,0.3)';
+          ctx.beginPath(); ctx.ellipse(sx, sy+TH*0.6, 8, 3, 0, 0, Math.PI*2); ctx.fill();
+        }
       }
-      // Particules de feu
-      const{x:fx,y:fy}=g2s(b.x,b.y);
-      for(let i=0;i<20;i++) G.parts.push(firePart(fx,fy-10));
     }
   }
-  if(def.id==='fest'){G.money+=5000; addMsg('🎪 Festival! +$5 000 en caisse!','s');}
-  if(def.id==='crime'&&!hasAnyCnt('police')){
-    G.money=Math.max(0,G.money-2000);
-    addMsg('🔫 Vol! Vous perdez $2 000. Construisez un commissariat!','e');
-  }
-  if(def.id==='storm'){
-    // Couper quelques bâtiments
-    let cut=0;
-    for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-      const c=G.grid[y][x];
-      if(c&&c.pow&&DEFS[c.type].pwr>0&&Math.random()<.3){c.pow=false;cut++;}
-    }
-    if(cut>0) addMsg(`⛈️ Tempête: ${cut} bâtiments hors tension temporairement.`,'w');
-    setTimeout(()=>{recalc();addMsg('🌤️ La tempête est passée, électricité rétablie.','s');renderFrame();},5000);
+
+  // Finish flag
+  const f = lvl.finG;
+  drawFinish(f.x+0.5, f.y+0.5);
+
+  // Start marker (fades over first 5 seconds)
+  if (timer < 300) {
+    const s2 = lvl.startG;
+    const p2 = g2s(s2.x+0.5, s2.y+0.5);
+    ctx.fillStyle = `rgba(0,255,80,${Math.max(0, 1-timer/300)})`;
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('START', p2.x, p2.y-22);
   }
 
-  renderEvents();
+  // Animals
+  for (const a of animals) {
+    const pa = g2s(a.gx+0.5, a.gy+0.5);
+    ctx.font = '22px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(a.e, pa.x, pa.y-6);
+  }
+
+  // Car (rendered last so it's on top)
+  drawCar();
 }
 
-function hasNearby(type,x,y,radius){
-  for(let gy=0;gy<GH;gy++)for(let gx=0;gx<GW;gx++){
-    if(G.grid[gy][gx]?.type===type){
-      if(Math.abs(gx-x)<=radius&&Math.abs(gy-y)<=radius)return true;
-    }
+// ── Physics update ────────────────────────────────────────────────────────────
+function updateCar() {
+  const tire = TIRES[car.tireIdx];
+  const drive = DRIVES[car.driveIdx];
+  const gear = GEARS[car.gear];
+  const tileT = getTile(car.gx, car.gy);
+
+  // Water: instant stop + respawn at last safe tile
+  if (tileT === T_WATER) {
+    car.speed = 0;
+    car.gx = car.safeGx;
+    car.gy = car.safeGy;
+    waterMsg = 150;
+    return;
   }
-  return false;
+
+  // Track last safe position
+  if (tileT >= 0 && tileT !== T_WATER) {
+    car.safeGx = car.gx;
+    car.safeGy = car.gy;
+  }
+
+  const grip = tileT >= 0 ? Math.min(1, tire.grip[tileT] * drive.grip_mult) : 0.5;
+
+  // Steering — turn rate tapers at higher speed
+  const spd2 = Math.abs(car.speed);
+  const turn = Math.max(0.012, 0.055*(1 - spd2/0.25));
+  if (keys['ArrowLeft'])  car.angle -= turn * Math.sign(car.speed || 1);
+  if (keys['ArrowRight']) car.angle += turn * Math.sign(car.speed || 1);
+
+  // Accelerate / brake
+  if (keys['ArrowUp']) {
+    car.speed += ENGINE_FORCE * gear.ratio * drive.accel;
+  } else if (keys['ArrowDown']) {
+    if (car.speed > 0.004) car.speed -= ENGINE_FORCE * 2.5;
+    else car.speed -= ENGINE_FORCE * gear.ratio * drive.accel * 0.55;
+  }
+
+  // Speed cap per gear
+  if (car.speed > gear.maxSpd) car.speed = gear.maxSpd;
+  if (car.speed < -gear.maxSpd*0.4) car.speed = -gear.maxSpd*0.4;
+
+  // Friction (grip affects rolling resistance)
+  car.speed *= grip * 0.968;
+  if (Math.abs(car.speed) < 0.0003) car.speed = 0;
+
+  // Auto gear shift
+  if (car.autoGear) {
+    const s = Math.abs(car.speed);
+    if (car.gear < 4 && s > GEARS[car.gear].maxSpd*0.88) car.gear++;
+    else if (car.gear > 0 && s < GEARS[car.gear].maxSpd*0.28 && keys['ArrowUp']) car.gear--;
+  }
+
+  // Apply movement
+  const nx = car.gx + Math.cos(car.angle) * car.speed;
+  const ny = car.gy + Math.sin(car.angle) * car.speed;
+  car.gx = Math.max(0.3, Math.min(lvl.cols-0.3, nx));
+  car.gy = Math.max(0.3, Math.min(lvl.rows-0.3, ny));
+
+  // Check finish
+  const fx = lvl.finG.x+0.5, fy = lvl.finG.y+0.5;
+  if (Math.abs(car.gx-fx) < 0.9 && Math.abs(car.gy-fy) < 0.9) {
+    if (timer < bestTimes[lvlIdx]) bestTimes[lvlIdx] = timer;
+    state = 'end';
+  }
 }
-function hasAnyCnt(t){return cnt(t)>0;}
 
-function firePart(x,y){
-  return{
-    x,y,vx:(Math.random()-.5)*1.5,vy:-1-Math.random()*2,
-    size:4+Math.random()*5,
-    col:Math.random()<.5?'#e74c3c':'#f39c12',
-    life:60+Math.random()*60, maxLife:120
-  };
+// ── Camera smooth follow ──────────────────────────────────────────────────────
+function updateCam() {
+  const tcx = W/2 - (car.gx-car.gy)*TW/2;
+  const tcy = H*0.46 - (car.gx+car.gy)*TH/2;
+  camX += (tcx - camX) * 0.1;
+  camY += (tcy - camY) * 0.1;
 }
 
-// ═══════════════════════════════════════════════════════
-//  AGENTS (VOITURES + HABITANTS)
-// ═══════════════════════════════════════════════════════
-function spawnAgents(){
-  // Max agents selon pop
-  const maxCars=Math.min(Math.floor(G.pop/5)+2,30);
-  const maxPeople=Math.min(Math.floor(G.pop/3)+2,40);
-
-  // Spawn voitures sur routes
-  const roads=[];
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++)if(G.grid[y][x]?.type==='road')roads.push({x,y});
-
-  const carColors=['#e74c3c','#3498db','#f1c40f','#2ecc71','#e67e22','#9b59b6','#1abc9c'];
-  while(G.agents.filter(a=>a.type==='car').length<maxCars&&roads.length>0){
-    const r=roads[Math.floor(Math.random()*roads.length)];
-    G.agents.push({type:'car',gx:r.x,gy:r.y,ox:0,oy:0,tx:r.x,ty:r.y,prog:0,spd:.4+Math.random()*.6,color:carColors[Math.floor(Math.random()*carColors.length)]});
-  }
-
-  // Spawn habitants près logements
-  const homes=[];
-  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
-    const c=G.grid[y][x];
-    if(c&&c.pow&&['house','apartment','tower'].includes(c.type))homes.push({x,y});
-  }
-  const pColors=['#f5cba7','#d7bde2','#a9cce3','#a9dfbf','#f9e79f'];
-  while(G.agents.filter(a=>a.type==='person').length<maxPeople&&homes.length>0){
-    const h=homes[Math.floor(Math.random()*homes.length)];
-    G.agents.push({type:'person',gx:h.x,gy:h.y,ox:0,oy:0,tx:h.x,ty:h.y,prog:0,spd:.15+Math.random()*.25,color:pColors[Math.floor(Math.random()*pColors.length)],homeX:h.x,homeY:h.y});
-  }
-}
-
-let lastAgentUpdate=0;
-function updateAgents(ts){
-  if(ts-lastAgentUpdate<50)return;
-  const dt=0.05;
-  lastAgentUpdate=ts;
-
-  for(const a of G.agents){
-    a.prog+=a.spd*dt;
-    if(a.prog>=1){
-      a.gx=a.tx; a.gy=a.ty; a.ox=0; a.oy=0; a.prog=0;
-      // Choisir prochaine destination
-      if(a.type==='car'){
-        const nexts=roadNeighbors(a.gx,a.gy);
-        if(nexts.length>0){const n=nexts[Math.floor(Math.random()*nexts.length)];a.tx=n.x;a.ty=n.y;}
-      } else {
-        // Personne: marche autour de sa maison
-        const dx=Math.floor((Math.random()-.5)*5);
-        const dy=Math.floor((Math.random()-.5)*5);
-        const nx=Math.max(0,Math.min(GW-1,a.homeX+dx));
-        const ny=Math.max(0,Math.min(GH-1,a.homeY+dy));
-        a.tx=nx; a.ty=ny;
+// ── Animal wandering ──────────────────────────────────────────────────────────
+function updateAnimals() {
+  for (const a of animals) {
+    a.t--;
+    if (a.t <= 0) {
+      a.t = 50 + Math.floor(Math.random()*120);
+      const dirs = [[1,0],[-1,0],[0,1],[0,-1],[0,0]];
+      const d = dirs[Math.floor(Math.random()*5)];
+      const nx = a.gx + d[0], ny = a.gy + d[1];
+      if (nx >= 0 && ny >= 0 && nx < lvl.cols && ny < lvl.rows) {
+        const tt = lvlMap[ny][nx];
+        if (tt !== T_WATER) { a.gx = nx; a.gy = ny; }
       }
+    }
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+function drawHUD() {
+  const t = getTile(car.gx, car.gy);
+  const tire = TIRES[car.tireIdx];
+  const drive = DRIVES[car.driveIdx];
+  const grip = t >= 0 ? Math.round(Math.min(1, tire.grip[t]*drive.grip_mult)*100) : 0;
+  const kmh = Math.abs(Math.round(car.speed * 1300));
+  const gear = car.gear + 1;
+  const secs = Math.floor(timer/60);
+  const m = Math.floor(secs/60), s = secs%60;
+  const tStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+
+  // Panel background
+  roundRect(8, 8, 230, 148, 6, 'rgba(0,0,0,0.55)', ['rgba(255,255,255,0.15)',1]);
+
+  ctx.textAlign = 'left';
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 26px monospace';
+  ctx.fillText(`${kmh} km/h`, 18, 42);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '14px monospace';
+  ctx.fillText(`Gear: ${car.autoGear?'A':''}${gear}  ${GEARS[car.gear].ratio}:1`, 18, 64);
+
+  ctx.fillStyle = '#aaddff';
+  ctx.font = '13px monospace';
+  ctx.fillText(`Tire: ${tire.name}`, 18, 82);
+  ctx.fillText(`Drive: ${drive.name}`, 18, 98);
+
+  ctx.fillStyle = '#ffe080';
+  ctx.fillText(`${t >= 0 ? TILE_NAME[t] : '?'} — grip ${grip}%`, 18, 114);
+
+  ctx.fillStyle = '#88ff88';
+  ctx.fillText(`Time: ${tStr}`, 18, 132);
+
+  ctx.fillStyle = car.autoGear ? '#88cc88' : '#cc8844';
+  ctx.font = '11px monospace';
+  ctx.fillText(car.autoGear ? '⚙ AUTO GEAR' : '⚙ MANUAL GEAR', 18, 150);
+
+  // Level name (top right)
+  roundRect(W-192, 8, 184, 32, 5, 'rgba(0,0,0,0.5)', ['rgba(255,215,0,0.4)',1]);
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(lvl.name, W-12, 28);
+
+  // Control hints (bottom)
+  roundRect(6, H-32, 452, 26, 4, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = '#999';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('↑↓←→ drive  G/Shift+G gear  Tab config  R restart', 12, H-14);
+
+  // Water message
+  if (waterMsg > 0) {
+    const alpha = Math.min(1, waterMsg/30);
+    ctx.fillStyle = `rgba(30,120,255,${alpha})`;
+    ctx.font = 'bold 32px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText("💦 Dans l'eau! 💦", W/2, H/2-30);
+    waterMsg--;
+  }
+}
+
+// ── Config panel ──────────────────────────────────────────────────────────────
+function drawConfig() {
+  const px=W/2-215, py=H/2-170, pw=430, ph=346;
+  roundRect(px, py, pw, ph, 10, 'rgba(15,15,25,0.96)', ['#ffd700',2]);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 20px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚙  Vehicle Configuration', px+pw/2, py+32);
+
+  // Tires row
+  ctx.fillStyle = '#aaddff';
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('TIRES:', px+18, py+62);
+
+  TIRES.forEach((ti, i) => {
+    const bx=px+18+i*103, by=py+70;
+    const sel = car.tireIdx === i;
+    roundRect(bx, by, 94, 38, 6, sel ? ti.col : '#222', ['#555',1.5]);
+    if (sel) roundRect(bx, by, 94, 38, 6, null, ['#fff',2]);
+    ctx.fillStyle = sel ? '#fff' : '#aaa';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(ti.name, bx+47, by+24);
+  });
+
+  // Drive mode row
+  ctx.fillStyle = '#aaddff';
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('DRIVE MODE:', px+18, py+134);
+
+  DRIVES.forEach((dr, i) => {
+    const bx=px+18+i*103, by=py+142;
+    const sel = car.driveIdx === i;
+    roundRect(bx, by, 94, 38, 6, sel ? '#336699' : '#222', ['#555',1.5]);
+    if (sel) roundRect(bx, by, 94, 38, 6, null, ['#fff',2]);
+    ctx.fillStyle = sel ? '#fff' : '#aaa';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(dr.name, bx+47, by+24);
+  });
+
+  // Auto gear toggle
+  const gmx=px+18, gmy=py+207;
+  roundRect(gmx, gmy, 190, 38, 6, car.autoGear ? '#1a5530' : '#551a1a', ['#888',1]);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(car.autoGear ? 'AUTO GEAR: ON' : 'MANUAL GEAR', gmx+95, gmy+24);
+
+  // Grip stats table
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('Grip stats:', px+230, py+218);
+
+  const tire = TIRES[car.tireIdx];
+  const drv = DRIVES[car.driveIdx];
+  const statList = [
+    [T_ROAD,'Road'],[T_GRASS,'Grass'],[T_DIRT,'Dirt'],[T_MUD,'Mud'],
+    [T_SNOW,'Snow'],[T_ICE,'Ice'],[T_SAND,'Sand'],[T_ROCK,'Rock']
+  ];
+  statList.forEach(([ti, nm], i) => {
+    const col2 = i < 4 ? 0 : 1, row = i%4;
+    const gx2 = px+230+col2*100, gy2 = py+235+row*17;
+    const eff = Math.min(1, tire.grip[ti] * drv.grip_mult);
+    ctx.fillStyle = eff > 0.7 ? '#88ff88' : eff > 0.45 ? '#ffee44' : '#ff6644';
+    ctx.fillText(`${nm}: ${Math.round(eff*100)}%`, gx2, gy2);
+  });
+
+  // Close hint
+  ctx.fillStyle = '#666';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Tab or click outside to close', px+pw/2, py+ph-10);
+}
+
+// ── Title screen ──────────────────────────────────────────────────────────────
+function drawTitle() {
+  // Night sky gradient
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#180030');
+  g.addColorStop(0.5, '#420a60');
+  g.addColorStop(1, '#200040');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  for (let i=0; i<100; i++) {
+    const sx = (i*137.508) % W, sy = (i*93.72) % 220;
+    const sr = 0.5 + ((i*31)%3)*0.3;
+    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
+  }
+
+  // Aurora borealis effect
+  for (let i=0; i<3; i++) {
+    const aw = frame*0.005 + i*1.1;
+    const ag = ctx.createLinearGradient(0, 200+i*20, 0, 260+i*25);
+    ag.addColorStop(0, 'rgba(0,200,120,0)');
+    ag.addColorStop(0.5, `rgba(0,220,${120+i*30},0.18)`);
+    ag.addColorStop(1, 'rgba(0,180,100,0)');
+    ctx.fillStyle = ag;
+    ctx.beginPath();
+    ctx.moveTo(0, 210+i*15);
+    for (let x=0; x<=W; x+=20) {
+      ctx.lineTo(x, 210+i*15 + Math.sin(x*0.02+aw)*18);
+    }
+    ctx.lineTo(W, 280); ctx.lineTo(0, 280);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Title
+  ctx.shadowColor = 'rgba(255,80,0,0.8)'; ctx.shadowBlur = 20;
+  ctx.fillStyle = '#ffdd00';
+  ctx.font = 'bold 54px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('🍁 CANADA 4×4 🍁', W/2, 118);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#ffccaa';
+  ctx.font = '18px monospace';
+  ctx.fillText('Isometric Off-Road Adventure', W/2, 150);
+
+  ctx.fillStyle = '#bbbbcc';
+  ctx.font = '14px monospace';
+  ctx.fillText('Choose your level:', W/2, 198);
+
+  // Level buttons
+  const bCols = [
+    ['#a03010','#e05020'],
+    ['#106640','#20aa60'],
+    ['#104468','#1878b0']
+  ];
+  LEVELS.forEach((l, i) => {
+    const bx=W/2-170, by=212+i*72, bw=340, bh=58;
+    const gr = ctx.createLinearGradient(bx, by, bx+bw, by);
+    gr.addColorStop(0, bCols[i][0]);
+    gr.addColorStop(1, bCols[i][1]);
+    roundRect(bx, by, bw, bh, 10, gr, ['rgba(255,215,0,0.6)',2]);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Level ${i+1}: ${l.name}`, W/2, by+27);
+
+    if (bestTimes[i] < Infinity) {
+      const bs = Math.floor(bestTimes[i]/60), bm = Math.floor(bs/60), bss = bs%60;
+      ctx.fillStyle = '#ffd700';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Best: ${String(bm).padStart(2,'0')}:${String(bss).padStart(2,'0')}`, W/2, by+46);
     } else {
-      // Interpoler
-      const{x:sx,y:sy}=g2s(a.gx,a.gy);
-      const{x:tx,y:ty}=g2s(a.tx,a.ty);
-      a.ox=(tx-sx)*a.prog; a.oy=(ty-sy)*a.prog;
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.font = '11px monospace';
+      ctx.fillText('No record yet', W/2, by+46);
+    }
+  });
+
+  ctx.fillStyle = 'rgba(180,180,200,0.6)';
+  ctx.font = '11px monospace';
+  ctx.fillText('↑↓←→ drive  G/Shift+G gear  Tab config  R restart', W/2, H-14);
+}
+
+// ── Level end screen ──────────────────────────────────────────────────────────
+function drawEnd() {
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.fillRect(0, 0, W, H);
+
+  const secs = Math.floor(timer/60), m = Math.floor(secs/60), s = secs%60;
+  const tStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const best = bestTimes[lvlIdx];
+  const bs = Math.floor(best/60), bm2 = Math.floor(bs/60), bss = bs%60;
+  const bStr = best < Infinity
+    ? `${String(bm2).padStart(2,'0')}:${String(bss).padStart(2,'0')}`
+    : '--:--';
+
+  ctx.shadowColor = 'rgba(255,200,0,0.8)'; ctx.shadowBlur = 30;
+  ctx.fillStyle = '#ffd700';
+  ctx.font = 'bold 46px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('🏁 NIVEAU TERMINÉ! 🏁', W/2, H/2-110);
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = '#fff';
+  ctx.font = '28px monospace';
+  ctx.fillText(`Your time: ${tStr}`, W/2, H/2-60);
+
+  ctx.fillStyle = '#ffd700';
+  ctx.font = '22px monospace';
+  ctx.fillText(`Best: ${bStr}`, W/2, H/2-24);
+
+  const btns = [
+    { lbl:'Next Level →', act:'next',    col:'#1a6622', show: lvlIdx < LEVELS.length-1 },
+    { lbl:'Replay Level',  act:'restart', col:'#334455', show: true },
+    { lbl:'Level Select',  act:'title',   col:'#333',    show: true },
+  ].filter(b => b.show);
+
+  btns.forEach((b, i) => {
+    const bx=W/2-145, by=H/2+20+i*65, bw=290, bh=52;
+    roundRect(bx, by, bw, bh, 8, b.col, ['#ffd700',2]);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.lbl, W/2, by+33);
+  });
+}
+
+// ── Start a level ─────────────────────────────────────────────────────────────
+function startLevel(i) {
+  lvlIdx = i;
+  lvl = LEVELS[i];
+  lvlMap = lvl.map;
+  car = makeCar(lvl);
+  camX = W/2 - (car.gx - car.gy)*TW/2;
+  camY = H*0.46 - (car.gx + car.gy)*TH/2;
+  timer = 0;
+  waterMsg = 0;
+  configOpen = false;
+  animals = lvl.animals.map(a => ({ ...a, t: Math.floor(Math.random()*80)+10 }));
+  state = 'playing';
+}
+
+// ── Click handler ─────────────────────────────────────────────────────────────
+C.addEventListener('click', e => {
+  const r = C.getBoundingClientRect();
+  const mx = (e.clientX - r.left) * (W / r.width);
+  const my = (e.clientY - r.top)  * (H / r.height);
+
+  if (state === 'title') {
+    LEVELS.forEach((_, i) => {
+      const bx=W/2-170, by=212+i*72, bw=340, bh=58;
+      if (mx>=bx && mx<=bx+bw && my>=by && my<=by+bh) startLevel(i);
+    });
+    return;
+  }
+
+  if (state === 'end') {
+    const btns = [
+      { act:'next',    show: lvlIdx < LEVELS.length-1 },
+      { act:'restart', show: true },
+      { act:'title',   show: true },
+    ].filter(b => b.show);
+    btns.forEach((b, i) => {
+      const bx=W/2-145, by=H/2+20+i*65, bw=290, bh=52;
+      if (mx>=bx && mx<=bx+bw && my>=by && my<=by+bh) {
+        if (b.act==='next')    startLevel(lvlIdx+1);
+        else if (b.act==='restart') startLevel(lvlIdx);
+        else state = 'title';
+      }
+    });
+    return;
+  }
+
+  if (state === 'playing' && configOpen) {
+    const px=W/2-215, py=H/2-170, pw=430, ph=346;
+
+    TIRES.forEach((_, i) => {
+      const bx=px+18+i*103, by=py+70;
+      if (mx>=bx && mx<=bx+94 && my>=by && my<=by+38) car.tireIdx = i;
+    });
+    DRIVES.forEach((_, i) => {
+      const bx=px+18+i*103, by=py+142;
+      if (mx>=bx && mx<=bx+94 && my>=by && my<=by+38) car.driveIdx = i;
+    });
+    // Auto gear toggle
+    const gmx=px+18, gmy=py+207;
+    if (mx>=gmx && mx<=gmx+190 && my>=gmy && my<=gmy+38) car.autoGear = !car.autoGear;
+
+    // Close if click outside panel
+    if (mx < px || mx > px+pw || my < py || my > py+ph) configOpen = false;
+  }
+});
+
+// ── Keyboard handler ──────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+
+  if (state === 'playing') {
+    if (e.key === 'Tab') { e.preventDefault(); configOpen = !configOpen; }
+    if (e.key === 'r' || e.key === 'R') startLevel(lvlIdx);
+    if (e.key === 'g' || e.key === 'G') {
+      if (car.autoGear) {
+        car.autoGear = false;
+      } else {
+        if (e.shiftKey) { if (car.gear > 0) car.gear--; }
+        else            { if (car.gear < 4) car.gear++; }
+      }
     }
   }
-
-  // Supprimer excédent
-  const maxCars=Math.min(Math.floor(G.pop/5)+2,30);
-  const maxPeople=Math.min(Math.floor(G.pop/3)+2,40);
-  G.agents=G.agents.filter((a,i)=>{
-    if(a.type==='car')return G.agents.filter(x=>x.type==='car').indexOf(a)<maxCars;
-    return G.agents.filter(x=>x.type==='person').indexOf(a)<maxPeople;
-  });
-}
-
-function roadNeighbors(x,y){
-  const dirs=[{x:1,y:0},{x:-1,y:0},{x:0,y:1},{x:0,y:-1}];
-  return dirs.map(d=>({x:x+d.x,y:y+d.y})).filter(p=>
-    p.x>=0&&p.x<GW&&p.y>=0&&p.y<GH&&G.grid[p.y][p.x]?.type==='road'
-  );
-}
-
-function updateParticles(){
-  G.parts=G.parts.filter(p=>{
-    p.x+=p.vx; p.y+=p.vy; p.vy-=.03; p.life--;
-    return p.life>0;
-  });
-}
-
-// ═══════════════════════════════════════════════════════
-//  QUÊTES
-// ═══════════════════════════════════════════════════════
-function buildQuests(){
-  const el=document.getElementById('qlist');
-  el.innerHTML='';
-  for(const q of QUESTS){
-    const div=document.createElement('div');
-    div.className='quest';
-    div.id='q_'+q.id;
-    div.innerHTML=`<div class="qt">${q.title}</div><div class="qd">${q.desc}</div><div class="qd" style="color:#888;margin-top:3px;font-style:italic">💡 ${q.hint}</div><div class="qpb"><div class="qpbf" style="width:0%"></div></div><div class="qr">🎁 Récompense: $${fmt(q.reward)}</div>`;
-    el.appendChild(div);
-  }
-  updateQuests();
-}
-
-function checkQuests(){
-  for(const q of QUESTS){
-    if(!G.done.has(q.id)&&q.check()){
-      G.done.add(q.id);
-      G.money+=q.reward;
-      addMsg(`✅ Objectif "${q.title}" complété! +$${fmt(q.reward)}`,'s');
-      if(q.id==='q10'){endGame(true);return;}
-    }
-  }
-  updateQuests();
-}
-
-function updateQuests(){
-  const next=QUESTS.find(q=>!G.done.has(q.id));
-  for(const q of QUESTS){
-    const el=document.getElementById('q_'+q.id);
-    if(!el)continue;
-    if(G.done.has(q.id)){el.className='quest done';}
-    else if(q===next){el.className='quest active';}
-    else{el.className='quest';}
-    // Progress bar rough
-    const bar=el.querySelector('.qpbf');
-    if(bar){bar.style.width=G.done.has(q.id)?'100%':'0%';}
-  }
-}
-
-// ═══════════════════════════════════════════════════════
-//  FIN DE PARTIE
-// ═══════════════════════════════════════════════════════
-function endGame(win){
-  G.running=false;
-  clearInterval(ticker);
-  document.getElementById('mt').textContent=win?'🏆 Victoire!':'💸 Faillite!';
-  document.getElementById('mp').innerHTML=win
-    ?`Félicitations! Vous avez bâti une ville de <b>${fmt(G.pop)}</b> habitants en <b>${G.yr} an(s)</b>!<br>Argent final: <b>$${fmt(Math.floor(G.money))}</b>`
-    :`Votre ville est en faillite après <b>${G.yr} an(s)</b>.<br>Population: <b>${fmt(G.pop)}</b> habitants.<br>Gérez mieux vos finances!`;
-  document.getElementById('modal').style.display='flex';
-}
-
-function restart(){newGame();}
-
-// ═══════════════════════════════════════════════════════
-//  UI
-// ═══════════════════════════════════════════════════════
-function renderUI(){
-  const inc=calcInc();
-  document.getElementById('h-money').textContent='$'+fmt(Math.floor(G.money));
-  document.getElementById('h-money').className='hs-v '+(G.money>=0?'white':'red');
-  document.getElementById('h-pop').textContent=fmt(G.pop);
-  document.getElementById('h-hap').textContent=G.hap+'%';
-  document.getElementById('h-hap').className='hs-v '+(G.hap>60?'green':G.hap>40?'yellow':'red');
-  document.getElementById('h-pwr').textContent=G.pUsed+'/'+G.pTotal;
-  document.getElementById('h-pwr').className='hs-v '+(G.pUsed<=G.pTotal?'green':'red');
-  document.getElementById('h-inc').textContent=(inc>=0?'+':'')+'$'+fmt(inc);
-  document.getElementById('h-inc').className='hs-v '+(inc>=0?'green':'red');
-  document.getElementById('h-date').textContent=MN[G.mi]+' An'+G.yr;
-
-  // Boutons bâtiments
-  Object.keys(DEFS).forEach(t=>{
-    const b=document.getElementById('b-'+t);
-    if(!b)return;
-    b.className='bb'+(G.money<DEFS[t].cost?' cant':'')+(G.selB===t?' on':'');
-  });
-  document.getElementById('bdbtn').className=G.bd?'on':'';
-  updatePopBadge();
-}
-
-function updatePopBadge(){
-  document.getElementById('pop-float').textContent='👥 '+fmt(G.pop)+' habitants';
-}
-
-function renderEvents(){
-  const el=document.getElementById('elist');
-  const panel=document.getElementById('epanel');
-  if(G.events.length===0){panel.style.display='none';return;}
-  panel.style.display='block';
-  el.innerHTML=G.events.map(ev=>`<div class="ev ${ev.cls}"><b>${ev.label}</b> (${ev.rem} mois)<br>${ev.desc}</div>`).join('');
-}
-
-function addMsg(txt,type){
-  const c=document.getElementById('msgs');
-  const d=document.createElement('div');
-  d.className='msg m'+type;
-  d.textContent=txt;
-  c.insertBefore(d,c.firstChild);
-  while(c.children.length>8)c.removeChild(c.lastChild);
-}
-
-function fmt(n){return Math.floor(n).toLocaleString('fr-FR');}
-
-document.getElementById('taxs').addEventListener('input',function(){
-  document.getElementById('taxv').textContent=this.value+'%';
-  renderUI();
 });
 
-// ═══════════════════════════════════════════════════════
-//  ENTRÉES SOURIS / CLAVIER
-// ═══════════════════════════════════════════════════════
-function gridFromEvt(e){
-  const r=cw.getBoundingClientRect();
-  return s2g(e.clientX-r.left,e.clientY-r.top);
-}
+document.addEventListener('keyup', e => { keys[e.key] = false; });
 
-cw.addEventListener('mousemove',e=>{
-  if(panStart){
-    camX=panCam.x+(e.clientX-panStart.x);
-    camY=panCam.y+(e.clientY-panStart.y);
-    renderFrame(); return;
-  }
-  const{x,y}=gridFromEvt(e);
-  hoverGX=x; hoverGY=y;
-
-  // Tooltip
-  const tip=document.getElementById('tooltip');
-  if(x>=0&&x<GW&&y>=0&&y<GH&&G.grid[y][x]){
-    const c=G.grid[y][x], d=DEFS[c.type];
-    let h=`<b>${c.type==='road'?'🛣️':''} ${d.n}</b><br>`;
-    h+=c.pow?'⚡ Alimenté':'🔴 Hors tension';
-    if(d.inc)h+=`<br>💰 +$${d.inc}/mois`;
-    if(d.up)h+=`<br>💸 -$${d.up}/mois`;
-    if(d.res)h+=`<br>👥 ${d.res} hab.`;
-    if(c.fire)h+=`<br>🔥 EN FEU!`;
-    tip.innerHTML=h;
-    tip.style.display='block';
-    tip.style.left=(e.clientX+14)+'px';
-    tip.style.top=(e.clientY-8)+'px';
-  } else tip.style.display='none';
-
-  if(isDragging&&G.selB==='road'){const{x:gx,y:gy}=gridFromEvt(e);build(gx,gy,'road');}
-  if(isDragging&&(G.bd||shiftDown)){const{x:gx,y:gy}=gridFromEvt(e);demolish(gx,gy);}
-  renderFrame();
-});
-
-let isDragging=false;
-cw.addEventListener('mousedown',e=>{
-  if(e.button===1||e.button===2||(e.button===0&&!G.selB&&!G.bd)){
-    panStart={x:e.clientX,y:e.clientY}; panCam={x:camX,y:camY};
-    cw.classList.add('grabbing'); return;
-  }
-  isDragging=true;
-  const{x,y}=gridFromEvt(e);
-  if(e.shiftKey||G.bd)demolish(x,y);
-  else if(G.selB)build(x,y,G.selB);
-});
-cw.addEventListener('mouseup',()=>{isDragging=false;panStart=null;cw.classList.remove('grabbing');});
-cw.addEventListener('mouseleave',()=>{hoverGX=-1;hoverGY=-1;document.getElementById('tooltip').style.display='none';renderFrame();});
-cw.addEventListener('contextmenu',e=>e.preventDefault());
-
-document.addEventListener('keydown',e=>{
-  shiftDown=e.shiftKey;
-  const K={r:'road',h:'house',a:'apartment',t:'tower',s:'shop',o:'office',f:'factory',p:'park',e:'powerplant',1:'school',2:'hospital',3:'police',4:'firestation'};
-  if(K[e.key])sel(K[e.key]);
-  if(e.key==='Escape'){G.selB=null;G.bd=false;renderUI();}
-  if(e.key==='Delete')togBD();
-});
-document.addEventListener('keyup',e=>{shiftDown=e.shiftKey;});
-
-// Zoom molette
-cw.addEventListener('wheel',e=>{
-  // Simple pan with wheel
-  camX-=e.deltaX*.5; camY-=e.deltaY*.5;
-  renderFrame();
-},{passive:true});
-
-function sel(t){G.selB=t;G.bd=false;renderUI();}
-function togBD(){G.bd=!G.bd;G.selB=null;renderUI();}
-
-// ═══════════════════════════════════════════════════════
-//  BOUCLE PRINCIPALE
-// ═══════════════════════════════════════════════════════
-let raf;
-function loop(ts){
-  updateAgents(ts);
-  updateParticles();
-  renderFrame();
-  raf=requestAnimationFrame(loop);
-}
-
-// ═══════════════════════════════════════════════════════
-//  DÉMARRAGE — différé pour que le layout CSS soit calculé
-// ═══════════════════════════════════════════════════════
-requestAnimationFrame(function init(){
-  newGame();   // G initialisé en premier
-  resize();    // canvas dimensionné avec G valide
+// ── Main animation loop ───────────────────────────────────────────────────────
+function loop() {
   requestAnimationFrame(loop);
-});
+  frame++;
+  ctx.clearRect(0, 0, W, H);
+
+  if (state === 'title') {
+    drawTitle();
+    return;
+  }
+
+  // Draw sky
+  drawSky(lvl.sky);
+
+  if (state === 'playing') {
+    updateCam();
+    updateAnimals();
+    updateCar();
+    timer++;
+  }
+
+  renderWorld();
+  drawHUD();
+
+  if (configOpen && state === 'playing') drawConfig();
+  if (state === 'end') drawEnd();
+}
+
+loop();
 </script>
 </body>
 </html>
