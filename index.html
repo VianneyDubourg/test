@@ -2,148 +2,233 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Canada 4×4 – Off-Road Isométrique</title>
+<title>Canadian Off-Road 4x4</title>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:#000; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
-canvas { display:block; }
+  body { margin:0; background:#000; display:flex; justify-content:center; align-items:center; height:100vh; overflow:hidden; }
+  canvas { display:block; image-rendering:pixelated; }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="c" width="900" height="600"></canvas>
 <script>
-"use strict";
-const C = document.getElementById('c');
-const ctx = C.getContext('2d');
-C.width = 900; C.height = 600;
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
 const W = 900, H = 600;
 const TW = 64, TH = 32;
-const ENGINE_FORCE = 0.0016;
 
-// ── Tile type constants ───────────────────────────────────────────────────────
-const T_GRASS=0,T_DIRT=1,T_MUD=2,T_ROCK=3,T_SNOW=4,T_ICE=5,T_ROAD=6,T_WATER=7,T_SAND=8;
-const TILE_NAME = ['Grass','Dirt','Mud','Rock','Snow','Ice','Road','Water','Sand'];
-const TILE_COL  = ['#4a7c3f','#9b7432','#5a4530','#7a7a7a','#dde8f0','#aad4f0','#4a4a52','#2255bb','#c8a850'];
+// State machine
+let state = 'title'; // title | playing | config | levelEnd
+let currentLevel = 0;
+let camX = 0, camY = 0;
+let timer = 0;
+let bestTimes = [Infinity, Infinity, Infinity];
+let levelEndTime = 0;
+let frameCount = 0;
 
-// ── Tire definitions ──────────────────────────────────────────────────────────
-// grip[tileType]: grass,dirt,mud,rock,snow,ice,road,water,sand
-const TIRES = [
-  { name:'Sport',    col:'#e02020', grip:[0.72,0.68,0.28,0.55,0.25,0.10,0.96,0,0.42] },
-  { name:'Balloon',  col:'#f8c020', grip:[0.80,0.78,0.65,0.70,0.62,0.32,0.82,0,0.72] },
-  { name:'Studded',  col:'#7080f0', grip:[0.68,0.72,0.52,0.60,0.92,0.82,0.76,0,0.58] },
-  { name:'Off-Road', col:'#50b030', grip:[0.84,0.90,0.82,0.88,0.58,0.28,0.74,0,0.82] },
+// Keys
+const keys = {};
+document.addEventListener('keydown', function(e) {
+  keys[e.code] = true;
+  if (state === 'playing') {
+    if (e.code === 'KeyG' && !e.shiftKey) shiftGear(1);
+    if (e.code === 'KeyG' && e.shiftKey) shiftGear(-1);
+    if (e.code === 'Tab') { e.preventDefault(); state = 'config'; }
+    if (e.code === 'KeyR') initLevel(currentLevel);
+  }
+  if (state === 'config') {
+    if (e.code === 'Tab' || e.code === 'Escape') { e.preventDefault(); state = 'playing'; }
+  }
+});
+document.addEventListener('keyup', function(e) { keys[e.code] = false; });
+
+// Tire types
+var TIRES = {
+  sport:   { name:'Sport',    color:'#cc2200', grip:{0:0.92,1:0.70,2:0.30,3:0.65,4:0.20,5:0.15,6:0.98,7:0,8:0.50} },
+  balloon: { name:'Balloon',  color:'#cc8800', grip:{0:0.82,1:0.80,2:0.65,3:0.70,4:0.60,5:0.35,6:0.85,7:0,8:0.70} },
+  studded: { name:'Studded',  color:'#0088cc', grip:{0:0.75,1:0.72,2:0.55,3:0.60,4:0.90,5:0.80,6:0.78,7:0,8:0.60} },
+  offroad: { name:'Off-Road', color:'#449922', grip:{0:0.85,1:0.88,2:0.82,3:0.85,4:0.55,5:0.30,6:0.80,7:0,8:0.78} }
+};
+var TIRE_KEYS = ['sport','balloon','studded','offroad'];
+
+// Drive modes
+var DRIVES = {
+  rwd:     { name:'RWD',     grip_mult:0.85, accel:1.00 },
+  awd:     { name:'AWD',     grip_mult:0.95, accel:0.95 },
+  fwd4:    { name:'4WD',     grip_mult:1.00, accel:0.90 },
+  lo4:     { name:'4WD-Lo',  grip_mult:1.05, accel:0.75 }
+};
+var DRIVE_KEYS = ['rwd','awd','fwd4','lo4'];
+
+// Gears
+var GEARS = [
+  { ratio:2.8, maxSpeed:0.040 },
+  { ratio:2.0, maxSpeed:0.070 },
+  { ratio:1.4, maxSpeed:0.110 },
+  { ratio:1.0, maxSpeed:0.160 },
+  { ratio:0.75,maxSpeed:0.220 }
+];
+var ENGINE_FORCE = 0.0008;
+
+// Tile constants
+var T_GRASS=0, T_DIRT=1, T_MUD=2, T_ROCK=3, T_SNOW=4, T_ICE=5, T_ROAD=6, T_WATER=7, T_SAND=8;
+var TILE_NAMES = ['Grass','Dirt','Mud','Rock','Snow','Ice','Road','Water','Sand'];
+
+var TILE_COLORS = [
+  '#4a7c2f', // 0 grass
+  '#a07848', // 1 dirt
+  '#5a4830', // 2 mud
+  '#888888', // 3 rock
+  '#ddeeff', // 4 snow
+  '#aaddff', // 5 ice
+  '#555555', // 6 road
+  '#2266bb', // 7 water
+  '#d4b483'  // 8 sand
 ];
 
-// ── Drive mode definitions ────────────────────────────────────────────────────
-const DRIVES = [
-  { name:'RWD',     grip_mult:0.85, accel:1.00 },
-  { name:'AWD',     grip_mult:1.00, accel:0.95 },
-  { name:'4WD',     grip_mult:1.12, accel:0.88 },
-  { name:'4WD-Low', grip_mult:1.22, accel:0.72 },
+var TILE_COLORS2 = [
+  '#5a9438',
+  '#b08858',
+  '#6a5840',
+  '#999999',
+  '#eef5ff',
+  '#bbedff',
+  '#666666',
+  '#3377cc',
+  '#e0c090'
 ];
 
-// ── Gear ratios ───────────────────────────────────────────────────────────────
-const GEARS = [
-  { ratio:3.5, maxSpd:0.044 },
-  { ratio:2.2, maxSpd:0.078 },
-  { ratio:1.5, maxSpd:0.120 },
-  { ratio:1.0, maxSpd:0.168 },
-  { ratio:0.7, maxSpd:0.230 },
-];
+// Car object
+var car = {};
 
-// ── Level data ────────────────────────────────────────────────────────────────
-// map: 0=grass 1=dirt 2=mud 3=rock 4=snow 5=ice 6=road 7=water 8=sand
-const LEVELS = [
+// Animals
+var animals = [];
+
+// Message overlay
+var message = '';
+var messageTick = 0;
+
+// Level maps (map[row][col], row=gy, col=gx)
+var LEVELS = [
   {
-    name:'Forêt BC', cols:14, rows:12,
-    sky:['#ff6018','#b02888','#280848'],
-    startG:{x:12,y:10}, finG:{x:1,y:1},
-    animals:[{e:'🦌',gx:5,gy:5},{e:'🐻',gx:8,gy:3},{e:'🐺',gx:3,gy:8}],
-    map:[
-      [0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-      [0,1,1,0,0,0,0,0,0,0,0,0,0,0],
-      [0,1,0,0,0,0,0,0,0,0,2,2,0,0],
-      [0,1,1,0,0,7,7,7,7,0,2,1,1,0],
-      [0,0,1,0,0,1,0,0,7,0,0,1,0,0],
-      [0,0,1,1,1,1,0,0,1,1,1,1,0,0],
-      [0,0,0,0,0,0,0,0,0,0,0,1,0,0],
-      [0,0,0,0,0,0,0,2,2,1,1,1,0,0],
-      [0,0,0,3,3,3,0,2,0,0,0,0,0,0],
-      [0,0,0,3,0,0,0,0,0,0,0,0,0,0],
-      [0,0,0,0,0,0,0,0,0,0,0,0,1,0],
-      [0,0,0,0,0,0,0,0,0,0,0,0,1,0],
+    name: 'Foret BC', sky: 'sunset',
+    W: 14, H: 12,
+    start: {gx:12.5, gy:10.5, angle: Math.PI},
+    finish: {gx:1, gy:1},
+    map: [
+      [0,0,6,6,6,0,0,0,0,0,0,0,0,0],
+      [0,0,6,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,6,0,0,0,0,0,0,0,0,0,0,0],
+      [0,0,6,6,1,1,0,0,0,0,0,0,0,0],
+      [0,0,0,0,1,0,0,0,0,0,0,0,0,0],
+      [0,0,0,0,1,1,1,2,2,0,0,0,0,0],
+      [0,0,0,0,0,0,1,2,0,0,0,0,0,0],
+      [7,7,7,1,1,1,1,0,0,0,0,0,0,0],
+      [7,7,7,1,0,0,0,0,0,0,0,0,0,0],
+      [0,0,0,1,1,1,0,0,0,0,0,0,0,0],
+      [0,0,0,0,0,1,1,1,1,1,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0,1,1,1,1,0]
     ]
   },
   {
-    name:'Toundra Yukon', cols:14, rows:12,
-    sky:['#90c8f0','#daeeff','#b0d8f4'],
-    startG:{x:12,y:10}, finG:{x:1,y:1},
-    animals:[{e:'🦌',gx:7,gy:4},{e:'🦌',gx:10,gy:7},{e:'🐺',gx:3,gy:6}],
-    map:[
-      [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
-      [4,1,1,4,4,4,4,4,4,4,4,4,4,4],
-      [4,1,4,5,5,4,4,4,4,4,4,4,4,4],
-      [4,1,1,4,5,5,5,4,3,3,4,4,4,4],
-      [4,4,1,4,4,5,4,3,3,4,4,4,4,4],
-      [4,4,1,1,1,1,4,3,4,4,4,4,4,4],
-      [4,4,4,4,4,1,4,4,4,4,4,4,4,4],
-      [4,4,4,4,4,1,1,4,4,4,4,5,4,4],
-      [4,4,4,4,4,4,1,1,4,5,5,4,4,4],
-      [4,4,4,4,4,4,4,1,1,1,4,4,4,4],
-      [4,4,4,4,4,4,4,4,4,1,1,1,4,4],
-      [4,4,4,4,4,4,4,4,4,4,4,4,4,4],
+    name: 'Toundra Yukon', sky: 'arctic',
+    W: 14, H: 12,
+    start: {gx:12.5, gy:10.5, angle: Math.PI},
+    finish: {gx:1, gy:1},
+    map: [
+      [4,4,1,1,4,4,4,4,4,4,4,4,4,4],
+      [4,4,1,4,4,4,4,4,4,4,4,4,4,4],
+      [4,4,1,1,4,4,3,3,4,4,4,4,4,4],
+      [4,4,4,1,5,5,3,4,4,4,4,4,4,4],
+      [4,4,4,1,5,4,4,4,4,4,4,4,4,4],
+      [4,4,4,1,1,1,3,3,4,4,4,4,4,4],
+      [4,4,4,4,4,1,3,4,4,4,4,4,4,4],
+      [4,4,4,4,4,1,1,4,4,4,4,4,4,4],
+      [4,4,4,4,4,4,1,1,4,4,4,4,4,4],
+      [4,4,4,4,4,4,4,1,1,4,4,4,4,4],
+      [4,4,4,4,4,4,4,4,1,1,1,1,4,4],
+      [4,4,4,4,4,4,4,4,4,4,4,1,1,4]
     ]
   },
   {
-    name:'Côte Atlantique', cols:16, rows:12,
-    sky:['#005580','#0088bb','#00aadd'],
-    startG:{x:14,y:10}, finG:{x:1,y:1},
-    animals:[{e:'🦌',gx:9,gy:5},{e:'🐻',gx:12,gy:3}],
-    map:[
-      [7,7,8,6,6,6,6,6,6,0,0,0,0,0,0,0],
-      [7,7,8,8,6,0,0,0,6,6,0,0,0,0,0,0],
-      [7,7,8,0,0,0,0,0,0,6,6,0,0,0,0,0],
-      [7,8,8,0,0,0,3,3,0,0,6,6,0,0,0,0],
-      [7,8,0,0,0,3,3,0,0,0,0,6,6,0,0,0],
-      [7,8,8,0,0,0,0,0,0,0,0,0,6,6,0,0],
-      [7,7,8,8,0,0,0,0,0,0,0,0,0,6,6,0],
-      [7,7,8,8,8,0,0,0,0,0,0,0,0,0,6,6],
-      [7,7,7,8,8,8,0,0,0,0,0,0,0,6,6,0],
-      [7,7,7,7,8,8,8,0,0,0,0,0,6,6,0,0],
-      [7,7,7,7,7,8,8,6,6,6,6,6,6,0,0,0],
-      [7,7,7,7,7,7,8,8,8,8,8,0,0,0,0,0],
+    name: 'Cote Atlantique', sky: 'coast',
+    W: 16, H: 12,
+    start: {gx:14.5, gy:10.5, angle: Math.PI},
+    finish: {gx:1, gy:1},
+    map: [
+      [7,6,6,6,8,8,0,0,0,0,0,0,0,0,0,0],
+      [7,6,8,8,8,0,0,0,0,0,0,0,0,0,0,0],
+      [7,7,6,8,0,0,0,0,0,0,0,0,0,0,0,0],
+      [7,7,6,6,8,8,0,0,0,0,0,0,0,0,0,0],
+      [7,7,7,6,8,0,0,0,0,0,0,0,0,0,0,0],
+      [7,7,7,6,6,8,8,0,0,0,0,0,0,0,0,0],
+      [7,7,7,7,6,8,0,0,0,0,0,0,0,0,0,0],
+      [7,7,7,7,6,6,8,8,0,0,0,0,0,0,0,0],
+      [7,7,7,7,7,6,8,0,0,0,0,0,0,0,0,0],
+      [7,7,7,7,7,6,6,8,8,0,0,0,0,0,0,0],
+      [7,7,7,7,7,7,6,8,8,8,8,8,8,8,0,0],
+      [7,7,7,7,7,7,6,6,6,6,6,6,6,6,6,0]
     ]
   }
 ];
 
-// ── Game state variables ──────────────────────────────────────────────────────
-let state = 'title';
-let lvlIdx = 0, lvl, lvlMap;
-let car, camX=0, camY=0;
-let timer=0, bestTimes=[Infinity,Infinity,Infinity];
-let waterMsg=0;
-let configOpen=false;
-let animals=[];
-let frame=0;
-const keys={};
-
-// ── Car factory ───────────────────────────────────────────────────────────────
-function makeCar(l) {
-  return {
-    gx: l.startG.x+0.5,
-    gy: l.startG.y+0.5,
-    angle: -Math.PI*0.75,
+function initLevel(idx) {
+  currentLevel = idx;
+  var lv = LEVELS[idx];
+  car = {
+    gx: lv.start.gx,
+    gy: lv.start.gy,
+    angle: lv.start.angle,
     speed: 0,
-    gear: 1,
+    gear: 0,
+    tireKey: 'offroad',
+    driveKey: 'fwd4',
     autoGear: true,
-    tireIdx: 3,
-    driveIdx: 1,
-    safeGx: l.startG.x+0.5,
-    safeGy: l.startG.y+0.5,
+    snorkel: false,
+    lastSafeX: lv.start.gx,
+    lastSafeY: lv.start.gy
   };
+  animals = spawnAnimals(lv);
+  timer = 0;
+  message = '';
+  messageTick = 0;
+  // Position camera on start
+  var sx = lv.start.gx, sy = lv.start.gy;
+  camX = W/2 - (sx - sy) * TW/2;
+  camY = H/2 - 60 - (sx + sy) * TH/2;
+  state = 'playing';
 }
 
-// ── Isometric projection ──────────────────────────────────────────────────────
+function spawnAnimals(lv) {
+  var result = [];
+  for (var i = 0; i < 4; i++) {
+    var ax, ay, tries = 0;
+    do {
+      ax = Math.floor(Math.random() * lv.W);
+      ay = Math.floor(Math.random() * lv.H);
+      tries++;
+    } while (tries < 60 && (lv.map[ay][ax] === T_WATER || lv.map[ay][ax] === T_ROAD));
+    result.push({
+      type: i % 3,
+      gx: ax + 0.5,
+      gy: ay + 0.5,
+      dx: (Math.random()-0.5)*0.012,
+      dy: (Math.random()-0.5)*0.012,
+      timer: Math.floor(Math.random()*120)
+    });
+  }
+  return result;
+}
+
+function shiftGear(dir) {
+  car.gear = Math.max(0, Math.min(GEARS.length-1, car.gear + dir));
+}
+
+function getTile(lv, gx, gy) {
+  var ix = Math.floor(gx), iy = Math.floor(gy);
+  if (ix < 0 || iy < 0 || ix >= lv.W || iy >= lv.H) return T_GRASS;
+  return lv.map[iy][ix];
+}
+
 function g2s(gx, gy) {
   return {
     x: camX + (gx - gy) * TW / 2,
@@ -151,747 +236,1067 @@ function g2s(gx, gy) {
   };
 }
 
-function getTile(gx, gy) {
-  const ix = Math.floor(gx), iy = Math.floor(gy);
-  if (ix < 0 || iy < 0 || ix >= lvl.cols || iy >= lvl.rows) return -1;
-  return lvlMap[iy][ix];
+function updateCamera() {
+  var sp = g2s(car.gx, car.gy);
+  camX += (W/2 - sp.x) * 0.12;
+  camY += (H/2 - 60 - sp.y) * 0.12;
 }
 
-// ── Color utility ─────────────────────────────────────────────────────────────
-function colAdjust(hex, amt) {
-  let r = parseInt(hex.slice(1,3),16);
-  let g = parseInt(hex.slice(3,5),16);
-  let b = parseInt(hex.slice(5,7),16);
-  r = Math.max(0, Math.min(255, r+amt));
-  g = Math.max(0, Math.min(255, g+amt));
-  b = Math.max(0, Math.min(255, b+amt));
-  return '#' + [r,g,b].map(v=>v.toString(16).padStart(2,'0')).join('');
+function updateCar() {
+  var lv = LEVELS[currentLevel];
+  var tire = TIRES[car.tireKey];
+  var drive = DRIVES[car.driveKey];
+  var gear = GEARS[car.gear];
+  var tileType = getTile(lv, car.gx, car.gy);
+
+  if (tileType === T_WATER) {
+    if (!car.snorkel) {
+      car.speed = 0;
+      car.gx = car.lastSafeX;
+      car.gy = car.lastSafeY;
+      showMessage("💦 Dans l'eau! Équipez un snorkel!", 120);
+      return;
+    }
+    // With snorkel: very slow but passable
+    showMessage('🌊 Snorkel actif!', 20);
+  }
+
+  var waterGrip = (tileType === T_WATER && car.snorkel) ? 0.28 : 1.0;
+  var grip = Math.max(0.01, tire.grip[tileType === T_WATER ? T_MUD : tileType] * drive.grip_mult * waterGrip);
+
+  // Steering (only when moving)
+  if (Math.abs(car.speed) > 0.001) {
+    var turnRate = 0.065 * (1.0 - Math.abs(car.speed) / (gear.maxSpeed + 0.001) * 0.45);
+    if (keys['ArrowLeft'])  car.angle -= turnRate * Math.sign(car.speed);
+    if (keys['ArrowRight']) car.angle += turnRate * Math.sign(car.speed);
+  }
+
+  // Throttle / brake
+  if (keys['ArrowUp']) {
+    car.speed += ENGINE_FORCE * gear.ratio * drive.accel;
+    if (car.speed > gear.maxSpeed) car.speed = gear.maxSpeed;
+  }
+  if (keys['ArrowDown']) {
+    if (car.speed > 0.002) {
+      car.speed -= ENGINE_FORCE * 3.5;
+    } else {
+      car.speed -= ENGINE_FORCE * 1.5;
+      if (car.speed < -gear.maxSpeed * 0.4) car.speed = -gear.maxSpeed * 0.4;
+    }
+  }
+
+  // Auto transmission
+  if (car.autoGear) {
+    if (keys['ArrowUp'] && Math.abs(car.speed) > gear.maxSpeed * 0.92 && car.gear < GEARS.length-1) {
+      car.gear++;
+    }
+    if (!keys['ArrowUp'] && car.gear > 0 && Math.abs(car.speed) < GEARS[car.gear-1].maxSpeed * 0.5) {
+      car.gear--;
+    }
+  }
+
+  // Friction
+  car.speed *= grip * 0.97;
+  if (Math.abs(car.speed) < 0.0001) car.speed = 0;
+
+  // Move car
+  var newX = car.gx + Math.cos(car.angle) * car.speed;
+  var newY = car.gy + Math.sin(car.angle) * car.speed;
+
+  // Boundary guard
+  car.gx = Math.max(0.3, Math.min(lv.W - 0.3, newX));
+  car.gy = Math.max(0.3, Math.min(lv.H - 0.3, newY));
+
+  // Track last safe
+  var ct = getTile(lv, car.gx, car.gy);
+  if (ct !== T_WATER) {
+    car.lastSafeX = car.gx;
+    car.lastSafeY = car.gy;
+  }
+
+  // Finish detection
+  var fx = lv.finish.gx + 0.5;
+  var fy = lv.finish.gy + 0.5;
+  var dx = car.gx - fx;
+  var dy = car.gy - fy;
+  if (Math.sqrt(dx*dx + dy*dy) < 1.2) {
+    levelEndTime = timer;
+    if (timer < bestTimes[currentLevel]) bestTimes[currentLevel] = timer;
+    state = 'levelEnd';
+  }
 }
 
-// ── Rounded rect helper ───────────────────────────────────────────────────────
-function roundRect(x,y,w,h,r,fill,stroke) {
+function updateAnimals() {
+  var lv = LEVELS[currentLevel];
+  for (var i = 0; i < animals.length; i++) {
+    var a = animals[i];
+    a.timer--;
+    if (a.timer <= 0) {
+      a.dx = (Math.random()-0.5)*0.015;
+      a.dy = (Math.random()-0.5)*0.015;
+      a.timer = 60 + Math.floor(Math.random()*120);
+    }
+    a.gx += a.dx;
+    a.gy += a.dy;
+    a.gx = Math.max(0.3, Math.min(lv.W-0.3, a.gx));
+    a.gy = Math.max(0.3, Math.min(lv.H-0.3, a.gy));
+    var t = getTile(lv, a.gx, a.gy);
+    if (t === T_WATER) {
+      a.gx -= a.dx * 3;
+      a.gy -= a.dy * 3;
+      a.dx = -a.dx + (Math.random()-0.5)*0.01;
+      a.dy = -a.dy + (Math.random()-0.5)*0.01;
+    }
+  }
+}
+
+function showMessage(msg, ticks) {
+  message = msg;
+  messageTick = ticks;
+}
+
+// ---- DRAWING FUNCTIONS ----
+
+function drawSky(sky) {
+  var grad;
+  if (sky === 'sunset') {
+    grad = ctx.createLinearGradient(0, 0, 0, H * 0.65);
+    grad.addColorStop(0,   '#150028');
+    grad.addColorStop(0.3, '#7a1060');
+    grad.addColorStop(0.6, '#dd4e18');
+    grad.addColorStop(1,   '#f08030');
+  } else if (sky === 'arctic') {
+    grad = ctx.createLinearGradient(0, 0, 0, H * 0.65);
+    grad.addColorStop(0,   '#08102a');
+    grad.addColorStop(0.4, '#1a4a8a');
+    grad.addColorStop(0.7, '#80ccee');
+    grad.addColorStop(1,   '#cce8f8');
+  } else {
+    grad = ctx.createLinearGradient(0, 0, 0, H * 0.65);
+    grad.addColorStop(0,   '#00102a');
+    grad.addColorStop(0.4, '#004488');
+    grad.addColorStop(0.7, '#1877cc');
+    grad.addColorStop(1,   '#66aadd');
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawTile(gx, gy, type) {
+  var s = g2s(gx, gy);
+  var cx = s.x + TW/2;
+  var cy = s.y;
+
   ctx.beginPath();
-  ctx.moveTo(x+r,y);
-  ctx.lineTo(x+w-r,y); ctx.arcTo(x+w,y,x+w,y+r,r);
-  ctx.lineTo(x+w,y+h-r); ctx.arcTo(x+w,y+h,x+w-r,y+h,r);
-  ctx.lineTo(x+r,y+h); ctx.arcTo(x,y+h,x,y+h-r,r);
-  ctx.lineTo(x,y+r); ctx.arcTo(x,y,x+r,y,r);
+  ctx.moveTo(cx,        cy);
+  ctx.lineTo(cx+TW/2,   cy+TH/2);
+  ctx.lineTo(cx,        cy+TH);
+  ctx.lineTo(cx-TW/2,   cy+TH/2);
   ctx.closePath();
-  if (fill) { ctx.fillStyle=fill; ctx.fill(); }
-  if (stroke) { ctx.strokeStyle=stroke[0]; ctx.lineWidth=stroke[1]; ctx.stroke(); }
-}
-
-// ── Draw iso tile ─────────────────────────────────────────────────────────────
-function drawIsoTile(sx, sy, col) {
-  ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(sx+TW/2, sy+TH/2);
-  ctx.lineTo(sx, sy+TH);
-  ctx.lineTo(sx-TW/2, sy+TH/2);
-  ctx.closePath();
-  ctx.fillStyle = col;
+  ctx.fillStyle = TILE_COLORS[type];
   ctx.fill();
-}
-
-function drawIsoBorder(sx, sy, col, lw) {
-  ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.lineTo(sx+TW/2, sy+TH/2);
-  ctx.lineTo(sx, sy+TH);
-  ctx.lineTo(sx-TW/2, sy+TH/2);
-  ctx.closePath();
-  ctx.strokeStyle = col;
-  ctx.lineWidth = lw;
+  ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+  ctx.lineWidth = 0.5;
   ctx.stroke();
-}
 
-// ── Draw pine tree ────────────────────────────────────────────────────────────
-function drawPineTree(sx, sy, snow) {
-  ctx.fillStyle = '#5a3215';
-  ctx.fillRect(sx-3, sy-4, 6, 12);
-  const cols = snow
-    ? ['#2a5520','#ddeeff','#3a6a28','#ddeeff']
-    : ['#2a5520','#3a7028','#4a8a32','#55a038'];
-  const ww=[22,18,14,10], hh=[16,14,12,10];
-  for (let i=0; i<4; i++) {
-    const ty = sy - 16 - i*12;
+  // Subtle lighter inner highlight
+  ctx.beginPath();
+  ctx.moveTo(cx,        cy+2);
+  ctx.lineTo(cx+TW/2-2, cy+TH/2);
+  ctx.lineTo(cx,        cy+TH-2);
+  ctx.lineTo(cx-TW/2+2, cy+TH/2);
+  ctx.closePath();
+  ctx.fillStyle = TILE_COLORS2[type] + '55';
+  ctx.fill();
+
+  // Water wave shimmer
+  if (type === T_WATER) {
+    var w = (Math.sin(frameCount * 0.08 + gx * 0.8 + gy * 0.6) + 1) * 0.15 + 0.1;
     ctx.beginPath();
-    ctx.moveTo(sx, ty);
-    ctx.lineTo(sx+ww[i], ty+hh[i]);
-    ctx.lineTo(sx-ww[i], ty+hh[i]);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx+TW/2, cy+TH/2);
+    ctx.lineTo(cx, cy+TH);
+    ctx.lineTo(cx-TW/2, cy+TH/2);
     ctx.closePath();
-    ctx.fillStyle = cols[i];
+    ctx.fillStyle = 'rgba(120,200,255,' + w.toFixed(2) + ')';
+    ctx.fill();
+  }
+
+  // Ice sheen
+  if (type === T_ICE) {
+    ctx.beginPath();
+    ctx.moveTo(cx-5, cy+TH*0.3);
+    ctx.lineTo(cx+5, cy+TH*0.3);
+    ctx.lineTo(cx+3, cy+TH*0.7);
+    ctx.lineTo(cx-3, cy+TH*0.7);
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.fill();
   }
 }
 
-// ── Draw rock cluster ─────────────────────────────────────────────────────────
-function drawRockCluster(sx, sy) {
-  ctx.fillStyle = '#6a6a6a';
-  ctx.beginPath(); ctx.ellipse(sx, sy+TH*0.7, 13, 7, 0.2, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = '#888';
-  ctx.beginPath(); ctx.ellipse(sx-3, sy+TH*0.6, 8, 4, 0.2, 0, Math.PI*2); ctx.fill();
+function drawTree(gx, gy) {
+  var s = g2s(gx+0.5, gy+0.5);
+  var bx = s.x + TW/2;
+  var by = s.y + TH/2 - 2;
+
+  // Ground shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.16)';
+  ctx.beginPath();
+  ctx.ellipse(bx+2, by+5, 12, 5, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // Trunk
+  ctx.fillStyle = '#5a3c1a';
+  ctx.fillRect(bx-2, by-8, 4, 10);
+
+  // Three triangle layers
+  var layers = [
+    {w:22, h:16, y:-6},
+    {w:17, h:14, y:-17},
+    {w:12, h:12, y:-27}
+  ];
+  for (var i = 0; i < layers.length; i++) {
+    var l = layers[i];
+    ctx.fillStyle = '#1a4f15';
+    ctx.beginPath();
+    ctx.moveTo(bx, by+l.y-l.h);
+    ctx.lineTo(bx+l.w/2, by+l.y);
+    ctx.lineTo(bx-l.w/2, by+l.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#2d7a25';
+    ctx.beginPath();
+    ctx.moveTo(bx, by+l.y-l.h+3);
+    ctx.lineTo(bx+l.w/2-2, by+l.y);
+    ctx.lineTo(bx-l.w/2+2, by+l.y);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
-// ── Sky gradient ──────────────────────────────────────────────────────────────
-function drawSky(colors) {
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  const step = 1 / (colors.length - 1);
-  colors.forEach((c,i) => g.addColorStop(i*step, c));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
+function drawSnowTree(gx, gy) {
+  var s = g2s(gx+0.5, gy+0.5);
+  var bx = s.x + TW/2;
+  var by = s.y + TH/2 - 2;
+
+  ctx.fillStyle = '#3a2010';
+  ctx.fillRect(bx-2, by-8, 4, 10);
+
+  var layers = [
+    {w:22, h:16, y:-6},
+    {w:17, h:14, y:-17},
+    {w:12, h:12, y:-27}
+  ];
+  for (var i = 0; i < layers.length; i++) {
+    var l = layers[i];
+    ctx.fillStyle = '#1a4010';
+    ctx.beginPath();
+    ctx.moveTo(bx, by+l.y-l.h);
+    ctx.lineTo(bx+l.w/2, by+l.y);
+    ctx.lineTo(bx-l.w/2, by+l.y);
+    ctx.closePath();
+    ctx.fill();
+    // Snow cap
+    ctx.fillStyle = '#e4f0ff';
+    ctx.beginPath();
+    ctx.moveTo(bx, by+l.y-l.h);
+    ctx.lineTo(bx+l.w*0.38, by+l.y-l.h*0.45);
+    ctx.lineTo(bx-l.w*0.38, by+l.y-l.h*0.45);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
-// ── Draw car ──────────────────────────────────────────────────────────────────
+function drawFinishFlag(gx, gy) {
+  var s = g2s(gx+0.5, gy+0.5);
+  var bx = s.x + TW/2;
+  var by = s.y + TH/2;
+
+  // Pole
+  ctx.strokeStyle = '#bbbbbb';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(bx, by);
+  ctx.lineTo(bx, by-46);
+  ctx.stroke();
+
+  // Checkered flag (4 cols x 3 rows)
+  var sz = 7;
+  for (var r = 0; r < 3; r++) {
+    for (var c = 0; c < 4; c++) {
+      var wave = Math.sin(frameCount * 0.12 + c * 0.7) * 2.5;
+      ctx.fillStyle = ((r + c) % 2 === 0) ? '#111111' : '#ffffff';
+      ctx.fillRect(bx + c*sz, by-46 + r*sz + wave, sz, sz);
+    }
+  }
+
+  ctx.fillStyle = '#ffee00';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('FINISH', bx+14, by-50);
+}
+
+function drawAnimal(a) {
+  var s = g2s(a.gx, a.gy);
+  var bx = s.x + TW/2;
+  var by = s.y + TH/2 - 4;
+  ctx.save();
+
+  if (a.type === 0) {
+    // Moose/Elk
+    ctx.fillStyle = '#7a4820';
+    ctx.fillRect(bx-9, by-5, 18, 9);   // body
+    ctx.fillRect(bx+7, by-9, 7, 6);    // head
+    ctx.fillStyle = '#5a3010';
+    ctx.fillRect(bx-7, by+4, 3, 6);    // legs
+    ctx.fillRect(bx-2, by+4, 3, 6);
+    ctx.fillRect(bx+4, by+4, 3, 6);
+    ctx.fillRect(bx+9, by+4, 3, 6);
+    ctx.strokeStyle = '#5a3010';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bx+8,  by-9);  ctx.lineTo(bx+6,  by-17); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx+12, by-9);  ctx.lineTo(bx+14, by-17); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx+8,  by-14); ctx.lineTo(bx+4,  by-13); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(bx+12, by-14); ctx.lineTo(bx+16, by-13); ctx.stroke();
+  } else if (a.type === 1) {
+    // Bear
+    ctx.fillStyle = '#3a2010';
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 11, 7, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(bx+11, by-4, 6, 5, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(bx+8,  by-9, 2.5, 2.5, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(bx+13, by-9, 2.5, 2.5, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#1a0808';
+    ctx.beginPath();
+    ctx.ellipse(bx+16, by-3, 2, 1.5, 0, 0, Math.PI*2);
+    ctx.fill();
+  } else {
+    // Wolf
+    ctx.fillStyle = '#888888';
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 10, 5, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(bx+10, by-3, 5, 4, 0.3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#aaaaaa';
+    ctx.beginPath();
+    ctx.ellipse(bx+14, by-1, 3, 2, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = '#666666';
+    ctx.beginPath();
+    ctx.moveTo(bx+7,  by-7);
+    ctx.lineTo(bx+5,  by-13);
+    ctx.lineTo(bx+10, by-8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(bx+11, by-7);
+    ctx.lineTo(bx+10, by-13);
+    ctx.lineTo(bx+14, by-8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#888888';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(bx-8, by);
+    ctx.quadraticCurveTo(bx-14, by-5, bx-11, by-10);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawCar() {
-  const a = car.angle;
-  const isoA = Math.atan2((Math.cos(a)+Math.sin(a))*TH, (Math.cos(a)-Math.sin(a))*TW);
-  const p = g2s(car.gx, car.gy);
-  const tire = TIRES[car.tireIdx];
+  var s = g2s(car.gx, car.gy);
+  var bx = s.x + TW/2;
+  var by = s.y + TH/2;
+  var a = car.angle;
+
+  // Isometric screen angle
+  var sa = Math.atan2(
+    (Math.cos(a) + Math.sin(a)) * TH,
+    (Math.cos(a) - Math.sin(a)) * TW
+  );
 
   ctx.save();
-  ctx.translate(p.x, p.y - 6);
-  ctx.rotate(isoA);
+  ctx.translate(bx, by);
+  ctx.rotate(sa);
 
-  // shadow
-  ctx.fillStyle = 'rgba(0,0,0,0.22)';
-  ctx.beginPath(); ctx.ellipse(1, 8, 22, 9, 0, 0, Math.PI*2); ctx.fill();
+  var tire = TIRES[car.tireKey];
+  var cw = 24, ch = 13;
 
-  // body
-  ctx.fillStyle = tire.col;
-  ctx.fillRect(-20, -10, 40, 20);
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(2, 4, cw*0.6, ch*0.45, 0, 0, Math.PI*2);
+  ctx.fill();
 
-  // roof
-  ctx.fillStyle = '#2a2a2a';
-  ctx.fillRect(-13, -9, 26, 16);
+  // Main body
+  ctx.fillStyle = tire.color;
+  ctx.fillRect(-cw/2, -ch/2, cw, ch);
 
-  // windshield
-  ctx.fillStyle = 'rgba(140,220,255,0.75)';
-  ctx.fillRect(-11, -8, 22, 7);
+  // Roof dark zone
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fillRect(-cw/2+5, -ch/2+2, cw-10, ch-4);
 
-  // rear window
-  ctx.fillStyle = 'rgba(120,200,240,0.5)';
-  ctx.fillRect(-11, 2, 22, 5);
+  // Front windshield
+  ctx.fillStyle = 'rgba(160,215,255,0.75)';
+  ctx.fillRect(-cw/2+1, -ch/2+1, 8, ch-2);
 
-  // wheels
-  const wheelPos = [[-19,-10],[11,-10],[-19,6],[11,6]];
-  for (const [wx,wy] of wheelPos) {
-    ctx.fillStyle = '#1a1a1a';
-    ctx.fillRect(wx, wy, 9, 5);
-    ctx.fillStyle = '#555';
-    ctx.fillRect(wx+2, wy+1, 5, 3);
-  }
+  // Rear window
+  ctx.fillStyle = 'rgba(160,215,255,0.5)';
+  ctx.fillRect(cw/2-6, -ch/2+2, 5, ch-4);
+
+  // Roof highlight stripe
+  ctx.fillStyle = 'rgba(255,255,255,0.12)';
+  ctx.fillRect(-cw/2+5, -ch/2+2, cw-10, 2);
+
+  // Wheels
+  ctx.fillStyle = '#111111';
+  ctx.fillRect(-cw/2-2, -ch/2-2, 6, 4);   // fl
+  ctx.fillRect(-cw/2-2,  ch/2-2, 6, 4);   // fr
+  ctx.fillRect( cw/2-4, -ch/2-2, 6, 4);   // rl
+  ctx.fillRect( cw/2-4,  ch/2-2, 6, 4);   // rr
+
+  // Wheel rims
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillRect(-cw/2,   -ch/2-1, 2, 2);
+  ctx.fillRect(-cw/2,    ch/2-1, 2, 2);
 
   ctx.restore();
 }
 
-// ── Draw finish flag ──────────────────────────────────────────────────────────
-function drawFinish(gx, gy) {
-  const p = g2s(gx, gy);
-  // pole
-  ctx.fillStyle = '#aaa';
-  ctx.fillRect(p.x-1, p.y-52, 2, 52);
-  // animated checkered flag
-  const t = frame * 0.04;
-  const sz = 7;
-  for (let r=0; r<3; r++) {
-    for (let cc=0; cc<5; cc++) {
-      const wave = Math.sin(t + cc*0.6) * 4;
-      ctx.fillStyle = (r+cc)%2===0 ? '#fff' : '#111';
-      ctx.fillRect(p.x + cc*sz, p.y - 52 + r*sz + wave, sz, sz);
-    }
-  }
-  ctx.fillStyle = '#ffe040';
-  ctx.font = 'bold 12px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('FIN', p.x+17, p.y-57);
-}
-
-// ── Render the world ──────────────────────────────────────────────────────────
-function renderWorld() {
-  const cols = lvl.cols, rows = lvl.rows;
-
-  // Tiles in isometric back-to-front order
-  for (let s=0; s<cols+rows-1; s++) {
-    for (let i=0; i<cols; i++) {
-      const j = s - i;
-      if (j < 0 || j >= rows) continue;
-      const tile = lvlMap[j][i];
-      const p = g2s(i, j);
-      const sx = p.x, sy = p.y;
-
-      // base color with subtle checkerboard variation
-      let col = TILE_COL[tile] || '#4a7c3f';
-      if ((i+j)%2===1) col = colAdjust(col, 10);
-
-      drawIsoTile(sx, sy, col);
-      drawIsoBorder(sx, sy, 'rgba(0,0,0,0.12)', 0.5);
-
-      // Tile-specific decorations
-      if (tile === T_GRASS) {
-        if ((i*11+j*7)%13===0) {
-          ctx.fillStyle = '#3a6228';
-          ctx.font = '9px serif';
-          ctx.textAlign = 'center';
-          ctx.fillText('╷╷╷', sx, sy+TH);
-        }
-        if ((i*17+j*13)%11===0) drawPineTree(sx, sy-TH/2, false);
-
-      } else if (tile === T_SNOW) {
-        if ((i*13+j*9)%9===0) drawPineTree(sx, sy-TH/2, true);
-        if ((i*7+j*5)%5===0) {
-          ctx.fillStyle = 'rgba(255,255,255,0.6)';
-          ctx.beginPath(); ctx.arc(sx-4, sy+TH*0.5, 2, 0, Math.PI*2); ctx.fill();
-        }
-
-      } else if (tile === T_ROCK) {
-        if ((i*5+j*3)%3===0) drawRockCluster(sx, sy);
-
-      } else if (tile === T_WATER) {
-        const wt = frame * 0.025;
-        const alpha = 0.25 + 0.12*Math.sin(wt+(i+j)*0.7);
-        ctx.fillStyle = `rgba(80,140,240,${alpha})`;
-        ctx.beginPath(); ctx.ellipse(sx, sy+TH*0.65, 18, 6, 0, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = `rgba(150,200,255,${0.3+0.15*Math.sin(wt+i)})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(sx-10, sy+TH*0.6); ctx.lineTo(sx+10, sy+TH*0.6);
-        ctx.stroke();
-
-      } else if (tile === T_ICE) {
-        ctx.fillStyle = 'rgba(180,230,255,0.45)';
-        ctx.beginPath(); ctx.ellipse(sx-4, sy+TH*0.55, 10, 4, -0.3, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'rgba(220,245,255,0.3)';
-        ctx.beginPath(); ctx.ellipse(sx+6, sy+TH*0.7, 6, 3, 0.3, 0, Math.PI*2); ctx.fill();
-
-      } else if (tile === T_MUD) {
-        ctx.fillStyle = 'rgba(60,35,15,0.4)';
-        ctx.beginPath(); ctx.ellipse(sx+3, sy+TH*0.65, 12, 5, 0.2, 0, Math.PI*2); ctx.fill();
-
-      } else if (tile === T_ROAD) {
-        if ((i+j)%4===0) {
-          ctx.fillStyle = 'rgba(255,255,150,0.3)';
-          ctx.fillRect(sx-3, sy+TH*0.45, 6, 4);
-        }
-
-      } else if (tile === T_SAND) {
-        if ((i*9+j*11)%7===0) {
-          ctx.fillStyle = 'rgba(180,130,40,0.3)';
-          ctx.beginPath(); ctx.ellipse(sx, sy+TH*0.6, 8, 3, 0, 0, Math.PI*2); ctx.fill();
-        }
-      }
-    }
-  }
-
-  // Finish flag
-  const f = lvl.finG;
-  drawFinish(f.x+0.5, f.y+0.5);
-
-  // Start marker (fades over first 5 seconds)
-  if (timer < 300) {
-    const s2 = lvl.startG;
-    const p2 = g2s(s2.x+0.5, s2.y+0.5);
-    ctx.fillStyle = `rgba(0,255,80,${Math.max(0, 1-timer/300)})`;
-    ctx.font = 'bold 13px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('START', p2.x, p2.y-22);
-  }
-
-  // Animals
-  for (const a of animals) {
-    const pa = g2s(a.gx+0.5, a.gy+0.5);
-    ctx.font = '22px serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(a.e, pa.x, pa.y-6);
-  }
-
-  // Car (rendered last so it's on top)
-  drawCar();
-}
-
-// ── Physics update ────────────────────────────────────────────────────────────
-function updateCar() {
-  const tire = TIRES[car.tireIdx];
-  const drive = DRIVES[car.driveIdx];
-  const gear = GEARS[car.gear];
-  const tileT = getTile(car.gx, car.gy);
-
-  // Water: instant stop + respawn at last safe tile
-  if (tileT === T_WATER) {
-    car.speed = 0;
-    car.gx = car.safeGx;
-    car.gy = car.safeGy;
-    waterMsg = 150;
-    return;
-  }
-
-  // Track last safe position
-  if (tileT >= 0 && tileT !== T_WATER) {
-    car.safeGx = car.gx;
-    car.safeGy = car.gy;
-  }
-
-  const grip = tileT >= 0 ? Math.min(1, tire.grip[tileT] * drive.grip_mult) : 0.5;
-
-  // Steering — turn rate tapers at higher speed
-  const spd2 = Math.abs(car.speed);
-  const turn = Math.max(0.012, 0.055*(1 - spd2/0.25));
-  if (keys['ArrowLeft'])  car.angle -= turn * Math.sign(car.speed || 1);
-  if (keys['ArrowRight']) car.angle += turn * Math.sign(car.speed || 1);
-
-  // Accelerate / brake
-  if (keys['ArrowUp']) {
-    car.speed += ENGINE_FORCE * gear.ratio * drive.accel;
-  } else if (keys['ArrowDown']) {
-    if (car.speed > 0.004) car.speed -= ENGINE_FORCE * 2.5;
-    else car.speed -= ENGINE_FORCE * gear.ratio * drive.accel * 0.55;
-  }
-
-  // Speed cap per gear
-  if (car.speed > gear.maxSpd) car.speed = gear.maxSpd;
-  if (car.speed < -gear.maxSpd*0.4) car.speed = -gear.maxSpd*0.4;
-
-  // Friction (grip affects rolling resistance)
-  car.speed *= grip * 0.968;
-  if (Math.abs(car.speed) < 0.0003) car.speed = 0;
-
-  // Auto gear shift
-  if (car.autoGear) {
-    const s = Math.abs(car.speed);
-    if (car.gear < 4 && s > GEARS[car.gear].maxSpd*0.88) car.gear++;
-    else if (car.gear > 0 && s < GEARS[car.gear].maxSpd*0.28 && keys['ArrowUp']) car.gear--;
-  }
-
-  // Apply movement
-  const nx = car.gx + Math.cos(car.angle) * car.speed;
-  const ny = car.gy + Math.sin(car.angle) * car.speed;
-  car.gx = Math.max(0.3, Math.min(lvl.cols-0.3, nx));
-  car.gy = Math.max(0.3, Math.min(lvl.rows-0.3, ny));
-
-  // Check finish
-  const fx = lvl.finG.x+0.5, fy = lvl.finG.y+0.5;
-  if (Math.abs(car.gx-fx) < 0.9 && Math.abs(car.gy-fy) < 0.9) {
-    if (timer < bestTimes[lvlIdx]) bestTimes[lvlIdx] = timer;
-    state = 'end';
-  }
-}
-
-// ── Camera smooth follow ──────────────────────────────────────────────────────
-function updateCam() {
-  const tcx = W/2 - (car.gx-car.gy)*TW/2;
-  const tcy = H*0.46 - (car.gx+car.gy)*TH/2;
-  camX += (tcx - camX) * 0.1;
-  camY += (tcy - camY) * 0.1;
-}
-
-// ── Animal wandering ──────────────────────────────────────────────────────────
-function updateAnimals() {
-  for (const a of animals) {
-    a.t--;
-    if (a.t <= 0) {
-      a.t = 50 + Math.floor(Math.random()*120);
-      const dirs = [[1,0],[-1,0],[0,1],[0,-1],[0,0]];
-      const d = dirs[Math.floor(Math.random()*5)];
-      const nx = a.gx + d[0], ny = a.gy + d[1];
-      if (nx >= 0 && ny >= 0 && nx < lvl.cols && ny < lvl.rows) {
-        const tt = lvlMap[ny][nx];
-        if (tt !== T_WATER) { a.gx = nx; a.gy = ny; }
-      }
-    }
-  }
-}
-
-// ── HUD ───────────────────────────────────────────────────────────────────────
 function drawHUD() {
-  const t = getTile(car.gx, car.gy);
-  const tire = TIRES[car.tireIdx];
-  const drive = DRIVES[car.driveIdx];
-  const grip = t >= 0 ? Math.round(Math.min(1, tire.grip[t]*drive.grip_mult)*100) : 0;
-  const kmh = Math.abs(Math.round(car.speed * 1300));
-  const gear = car.gear + 1;
-  const secs = Math.floor(timer/60);
-  const m = Math.floor(secs/60), s = secs%60;
-  const tStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  var lv = LEVELS[currentLevel];
+  var tire = TIRES[car.tireKey];
+  var drive = DRIVES[car.driveKey];
+  var tileType = getTile(lv, car.gx, car.gy);
+  var grip = Math.max(0, tire.grip[tileType] * drive.grip_mult);
+  var speedKmh = Math.abs(car.speed) * 18000;
 
-  // Panel background
-  roundRect(8, 8, 230, 148, 6, 'rgba(0,0,0,0.55)', ['rgba(255,255,255,0.15)',1]);
+  // Left panel
+  ctx.fillStyle = 'rgba(0,0,0,0.62)';
+  ctx.fillRect(8, 8, 238, 120);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(8, 8, 238, 120);
 
   ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
 
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 26px monospace';
-  ctx.fillText(`${kmh} km/h`, 18, 42);
+  ctx.fillStyle = '#ffcc44';
+  ctx.font = 'bold 14px monospace';
+  ctx.fillText(lv.name, 16, 14);
 
-  ctx.fillStyle = '#ffd700';
-  ctx.font = '14px monospace';
-  ctx.fillText(`Gear: ${car.autoGear?'A':''}${gear}  ${GEARS[car.gear].ratio}:1`, 18, 64);
-
-  ctx.fillStyle = '#aaddff';
+  ctx.fillStyle = '#eeeeee';
   ctx.font = '13px monospace';
-  ctx.fillText(`Tire: ${tire.name}`, 18, 82);
-  ctx.fillText(`Drive: ${drive.name}`, 18, 98);
+  ctx.fillText('Speed:  ' + speedKmh.toFixed(0) + ' km/h', 16, 34);
+  ctx.fillText('Gear:   ' + (car.gear+1) + '/' + GEARS.length + (car.autoGear ? ' [Auto]' : ' [Manual]'), 16, 52);
 
-  ctx.fillStyle = '#ffe080';
-  ctx.fillText(`${t >= 0 ? TILE_NAME[t] : '?'} — grip ${grip}%`, 18, 114);
+  var gripColor = grip > 0.65 ? '#88ff88' : grip > 0.40 ? '#ffff88' : '#ff7777';
+  ctx.fillStyle = '#cccccc';
+  ctx.fillText('Terrain: ' + TILE_NAMES[tileType], 16, 70);
+  ctx.fillStyle = gripColor;
+  ctx.fillText('Grip: ' + (grip*100).toFixed(0) + '%', 150, 70);
 
-  ctx.fillStyle = '#88ff88';
-  ctx.fillText(`Time: ${tStr}`, 18, 132);
-
-  ctx.fillStyle = car.autoGear ? '#88cc88' : '#cc8844';
+  ctx.fillStyle = '#aaaaaa';
   ctx.font = '11px monospace';
-  ctx.fillText(car.autoGear ? '⚙ AUTO GEAR' : '⚙ MANUAL GEAR', 18, 150);
+  ctx.fillText('Tire: ' + tire.name + '  |  Drive: ' + drive.name + (car.snorkel ? '  |  🌊 Snorkel' : ''), 16, 90);
+  ctx.fillText('Tab=Config   R=Restart   G/Shift+G=Gear', 16, 107);
 
-  // Level name (top right)
-  roundRect(W-192, 8, 184, 32, 5, 'rgba(0,0,0,0.5)', ['rgba(255,215,0,0.4)',1]);
-  ctx.fillStyle = '#ffd700';
-  ctx.font = 'bold 13px monospace';
+  // Top-right: timer
+  ctx.fillStyle = 'rgba(0,0,0,0.58)';
+  ctx.fillRect(W-138, 8, 130, 56);
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.strokeRect(W-138, 8, 130, 56);
+
+  var secs = (timer / 60).toFixed(1);
+  ctx.fillStyle = '#aaffdd';
+  ctx.font = 'bold 20px monospace';
   ctx.textAlign = 'right';
-  ctx.fillText(lvl.name, W-12, 28);
+  ctx.fillText(secs + 's', W-12, 12);
 
-  // Control hints (bottom)
-  roundRect(6, H-32, 452, 26, 4, 'rgba(0,0,0,0.45)');
-  ctx.fillStyle = '#999';
-  ctx.font = '11px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('↑↓←→ drive  G/Shift+G gear  Tab config  R restart', 12, H-14);
+  if (bestTimes[currentLevel] < Infinity) {
+    ctx.fillStyle = '#ffee88';
+    ctx.font = '12px monospace';
+    ctx.fillText('Best: ' + (bestTimes[currentLevel]/60).toFixed(1) + 's', W-12, 38);
+  }
+
+  // Speed bar
+  var maxBarW = 110;
+  var barW = Math.min(maxBarW, (Math.abs(car.speed) / 0.22) * maxBarW);
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(W-138, 68, maxBarW+4, 12);
+  ctx.fillStyle = car.speed >= 0 ? '#44ff88' : '#ff6644';
+  ctx.fillRect(W-136, 70, barW, 8);
+  ctx.fillStyle = '#888888';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText('SPEED', W-12, 68);
 
   // Water message
-  if (waterMsg > 0) {
-    const alpha = Math.min(1, waterMsg/30);
-    ctx.fillStyle = `rgba(30,120,255,${alpha})`;
-    ctx.font = 'bold 32px monospace';
+  if (messageTick > 0) {
+    var alpha = Math.min(1.0, messageTick / 25);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = 'bold 34px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText("💦 Dans l'eau! 💦", W/2, H/2-30);
-    waterMsg--;
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#000000';
+    ctx.fillText(message, W/2+2, H/2+2);
+    ctx.fillStyle = '#ff4444';
+    ctx.fillText(message, W/2, H/2);
+    ctx.restore();
+    messageTick--;
   }
 }
 
-// ── Config panel ──────────────────────────────────────────────────────────────
-function drawConfig() {
-  const px=W/2-215, py=H/2-170, pw=430, ph=346;
-  roundRect(px, py, pw, ph, 10, 'rgba(15,15,25,0.96)', ['#ffd700',2]);
-
-  ctx.fillStyle = '#ffd700';
-  ctx.font = 'bold 20px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('⚙  Vehicle Configuration', px+pw/2, py+32);
-
-  // Tires row
-  ctx.fillStyle = '#aaddff';
-  ctx.font = '13px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('TIRES:', px+18, py+62);
-
-  TIRES.forEach((ti, i) => {
-    const bx=px+18+i*103, by=py+70;
-    const sel = car.tireIdx === i;
-    roundRect(bx, by, 94, 38, 6, sel ? ti.col : '#222', ['#555',1.5]);
-    if (sel) roundRect(bx, by, 94, 38, 6, null, ['#fff',2]);
-    ctx.fillStyle = sel ? '#fff' : '#aaa';
-    ctx.font = 'bold 12px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(ti.name, bx+47, by+24);
-  });
-
-  // Drive mode row
-  ctx.fillStyle = '#aaddff';
-  ctx.font = '13px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('DRIVE MODE:', px+18, py+134);
-
-  DRIVES.forEach((dr, i) => {
-    const bx=px+18+i*103, by=py+142;
-    const sel = car.driveIdx === i;
-    roundRect(bx, by, 94, 38, 6, sel ? '#336699' : '#222', ['#555',1.5]);
-    if (sel) roundRect(bx, by, 94, 38, 6, null, ['#fff',2]);
-    ctx.fillStyle = sel ? '#fff' : '#aaa';
-    ctx.font = 'bold 11px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(dr.name, bx+47, by+24);
-  });
-
-  // Auto gear toggle
-  const gmx=px+18, gmy=py+207;
-  roundRect(gmx, gmy, 190, 38, 6, car.autoGear ? '#1a5530' : '#551a1a', ['#888',1]);
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 13px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(car.autoGear ? 'AUTO GEAR: ON' : 'MANUAL GEAR', gmx+95, gmy+24);
-
-  // Grip stats table
-  ctx.fillStyle = '#ffd700';
-  ctx.font = '12px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('Grip stats:', px+230, py+218);
-
-  const tire = TIRES[car.tireIdx];
-  const drv = DRIVES[car.driveIdx];
-  const statList = [
-    [T_ROAD,'Road'],[T_GRASS,'Grass'],[T_DIRT,'Dirt'],[T_MUD,'Mud'],
-    [T_SNOW,'Snow'],[T_ICE,'Ice'],[T_SAND,'Sand'],[T_ROCK,'Rock']
-  ];
-  statList.forEach(([ti, nm], i) => {
-    const col2 = i < 4 ? 0 : 1, row = i%4;
-    const gx2 = px+230+col2*100, gy2 = py+235+row*17;
-    const eff = Math.min(1, tire.grip[ti] * drv.grip_mult);
-    ctx.fillStyle = eff > 0.7 ? '#88ff88' : eff > 0.45 ? '#ffee44' : '#ff6644';
-    ctx.fillText(`${nm}: ${Math.round(eff*100)}%`, gx2, gy2);
-  });
-
-  // Close hint
-  ctx.fillStyle = '#666';
-  ctx.font = '12px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('Tab or click outside to close', px+pw/2, py+ph-10);
-}
-
-// ── Title screen ──────────────────────────────────────────────────────────────
-function drawTitle() {
-  // Night sky gradient
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#180030');
-  g.addColorStop(0.5, '#420a60');
-  g.addColorStop(1, '#200040');
-  ctx.fillStyle = g;
+function drawConfigPanel() {
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
   ctx.fillRect(0, 0, W, H);
 
-  // Stars
-  ctx.fillStyle = 'rgba(255,255,255,0.85)';
-  for (let i=0; i<100; i++) {
-    const sx = (i*137.508) % W, sy = (i*93.72) % 220;
-    const sr = 0.5 + ((i*31)%3)*0.3;
-    ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI*2); ctx.fill();
+  var pw = 450, ph = 420;
+  var px = W/2 - pw/2, py = H/2 - ph/2;
+
+  ctx.fillStyle = '#0e0e22';
+  ctx.fillRect(px, py, pw, ph);
+  ctx.strokeStyle = '#4488dd';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(px, py, pw, ph);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('VEHICLE CONFIGURATION', W/2, py+12);
+
+  ctx.strokeStyle = '#223';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(px+12, py+38); ctx.lineTo(px+pw-12, py+38);
+  ctx.stroke();
+
+  // --- Tires ---
+  ctx.fillStyle = '#88aaff';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('TIRES:', px+14, py+46);
+
+  for (var i = 0; i < TIRE_KEYS.length; i++) {
+    var tk = TIRE_KEYS[i];
+    var bx = px+14 + i*104, by = py+64;
+    var sel = (car.tireKey === tk);
+    ctx.fillStyle = sel ? TIRES[tk].color : '#1e1e30';
+    ctx.fillRect(bx, by, 96, 34);
+    ctx.strokeStyle = sel ? '#ffffff' : '#333355';
+    ctx.lineWidth = sel ? 2 : 1;
+    ctx.strokeRect(bx, by, 96, 34);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = (sel ? 'bold ' : '') + '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(TIRES[tk].name, bx+48, by+17);
   }
 
-  // Aurora borealis effect
-  for (let i=0; i<3; i++) {
-    const aw = frame*0.005 + i*1.1;
-    const ag = ctx.createLinearGradient(0, 200+i*20, 0, 260+i*25);
-    ag.addColorStop(0, 'rgba(0,200,120,0)');
-    ag.addColorStop(0.5, `rgba(0,220,${120+i*30},0.18)`);
-    ag.addColorStop(1, 'rgba(0,180,100,0)');
-    ctx.fillStyle = ag;
+  // --- Drive modes ---
+  ctx.fillStyle = '#88aaff';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('DRIVE MODE:', px+14, py+110);
+
+  for (var i = 0; i < DRIVE_KEYS.length; i++) {
+    var dk = DRIVE_KEYS[i];
+    var bx = px+14 + i*104, by = py+128;
+    var sel = (car.driveKey === dk);
+    ctx.fillStyle = sel ? '#1a4488' : '#1e1e30';
+    ctx.fillRect(bx, by, 96, 34);
+    ctx.strokeStyle = sel ? '#88aaff' : '#333355';
+    ctx.lineWidth = sel ? 2 : 1;
+    ctx.strokeRect(bx, by, 96, 34);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = (sel ? 'bold ' : '') + '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(DRIVES[dk].name, bx+48, by+17);
+  }
+
+  // --- Transmission ---
+  ctx.fillStyle = '#88aaff';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('TRANSMISSION:', px+14, py+176);
+
+  var txLabels = ['Auto', 'Manual'];
+  for (var i = 0; i < 2; i++) {
+    var bx = px+14 + i*112, by = py+194;
+    var sel = (i === 0) === car.autoGear;
+    ctx.fillStyle = sel ? '#1a4a1a' : '#1e1e30';
+    ctx.fillRect(bx, by, 98, 34);
+    ctx.strokeStyle = sel ? '#44ff88' : '#333355';
+    ctx.lineWidth = sel ? 2 : 1;
+    ctx.strokeRect(bx, by, 98, 34);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = (sel ? 'bold ' : '') + '12px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(txLabels[i], bx+49, by+17);
+  }
+
+  // --- Snorkel toggle ---
+  ctx.fillStyle = '#888888';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('SNORKEL (traversée eau):', px+14, py+236);
+  var snkX = px+14, snkY = py+252;
+  ctx.fillStyle = car.snorkel ? '#1a3a4a' : '#1e1e30';
+  ctx.fillRect(snkX, snkY, 210, 34);
+  ctx.strokeStyle = car.snorkel ? '#00ccff' : '#333355';
+  ctx.lineWidth = car.snorkel ? 2 : 1;
+  ctx.strokeRect(snkX, snkY, 210, 34);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = (car.snorkel ? 'bold ' : '') + '13px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(car.snorkel ? '🌊 Snorkel ON — eau traversable' : '🌊 Snorkel OFF — eau = respawn', snkX+105, snkY+17);
+
+  // --- Grip table ---
+  ctx.fillStyle = '#888888';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  var infoY = py + 302;
+  ctx.fillText('Grip ratings for selected tire:', px+14, infoY);
+  var tire = TIRES[car.tireKey];
+  var terrainShow = [T_GRASS, T_DIRT, T_MUD, T_ROCK, T_SNOW, T_ICE, T_ROAD, T_SAND];
+  for (var i = 0; i < terrainShow.length; i++) {
+    var t = terrainShow[i];
+    var gVal = tire.grip[t];
+    var gPct = (gVal * 100).toFixed(0);
+    ctx.fillStyle = gVal > 0.70 ? '#88ff88' : gVal > 0.45 ? '#ffee88' : '#ff8888';
+    ctx.fillText(TILE_NAMES[t]+':'+gPct+'%', px+14 + (i%4)*108, infoY+16 + Math.floor(i/4)*16);
+  }
+
+  // Close hint
+  ctx.fillStyle = '#445566';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('Press Tab or Esc to return to game', W/2, py+ph-6);
+}
+
+function drawTitleScreen() {
+  // Background gradient
+  var grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0,    '#06001a');
+  grad.addColorStop(0.45, '#160838');
+  grad.addColorStop(0.8,  '#0a2a14');
+  grad.addColorStop(1,    '#050e08');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Starfield
+  for (var i = 0; i < 100; i++) {
+    var sx = (i * 137 + 23) % W;
+    var sy = (i * 97 + 41) % (H * 0.55);
+    var br = (Math.sin(frameCount * 0.04 + i * 0.75) + 1) * 0.5;
+    ctx.fillStyle = 'rgba(255,255,255,' + (br * 0.8).toFixed(2) + ')';
+    ctx.fillRect(sx, sy, i % 6 === 0 ? 2 : 1, i % 6 === 0 ? 2 : 1);
+  }
+
+  // Aurora bands
+  for (var i = 0; i < 4; i++) {
+    var aGrad = ctx.createLinearGradient(0, 70+i*28, 0, 160+i*28);
+    aGrad.addColorStop(0, 'rgba(0,255,110,0)');
+    aGrad.addColorStop(0.5, 'rgba(0,180,160,' + (0.04+i*0.015) + ')');
+    aGrad.addColorStop(1, 'rgba(60,0,180,0)');
+    ctx.fillStyle = aGrad;
+    var wx = Math.sin(frameCount*0.013 + i*1.4) * 70;
     ctx.beginPath();
-    ctx.moveTo(0, 210+i*15);
-    for (let x=0; x<=W; x+=20) {
-      ctx.lineTo(x, 210+i*15 + Math.sin(x*0.02+aw)*18);
-    }
-    ctx.lineTo(W, 280); ctx.lineTo(0, 280);
-    ctx.closePath();
+    ctx.ellipse(W/2+wx, 110+i*28, W*0.7, 38, 0, 0, Math.PI*2);
     ctx.fill();
   }
 
   // Title
-  ctx.shadowColor = 'rgba(255,80,0,0.8)'; ctx.shadowBlur = 20;
-  ctx.fillStyle = '#ffdd00';
-  ctx.font = 'bold 54px monospace';
+  ctx.save();
+  ctx.shadowColor = '#ff5500';
+  ctx.shadowBlur = 28;
+  ctx.fillStyle = '#ff9900';
+  ctx.font = 'bold 50px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('🍁 CANADA 4×4 🍁', W/2, 118);
-  ctx.shadowBlur = 0;
+  ctx.textBaseline = 'top';
+  ctx.fillText('CANADIAN OFF-ROAD', W/2, 98);
+  ctx.restore();
 
-  ctx.fillStyle = '#ffccaa';
-  ctx.font = '18px monospace';
-  ctx.fillText('Isometric Off-Road Adventure', W/2, 150);
+  ctx.fillStyle = '#5599cc';
+  ctx.font = '20px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('4x4 WILDERNESS CHALLENGE', W/2, 158);
 
-  ctx.fillStyle = '#bbbbcc';
-  ctx.font = '14px monospace';
-  ctx.fillText('Choose your level:', W/2, 198);
+  // Instructions box
+  ctx.fillStyle = 'rgba(0,0,0,0.48)';
+  ctx.fillRect(W/2-300, 192, 600, 52);
+  ctx.fillStyle = '#778866';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Arrow Keys: Drive   |   G: Gear Up   |   Shift+G: Gear Down   |   Tab: Config   |   R: Restart', W/2, 206);
+  ctx.fillText('Reach the FINISH flag as fast as you can!  Water = instant stop!', W/2, 226);
 
-  // Level buttons
-  const bCols = [
-    ['#a03010','#e05020'],
-    ['#106640','#20aa60'],
-    ['#104468','#1878b0']
-  ];
-  LEVELS.forEach((l, i) => {
-    const bx=W/2-170, by=212+i*72, bw=340, bh=58;
-    const gr = ctx.createLinearGradient(bx, by, bx+bw, by);
-    gr.addColorStop(0, bCols[i][0]);
-    gr.addColorStop(1, bCols[i][1]);
-    roundRect(bx, by, bw, bh, 10, gr, ['rgba(255,215,0,0.6)',2]);
+  // Level select
+  ctx.fillStyle = '#dddddd';
+  ctx.font = 'bold 15px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('SELECT A LEVEL:', W/2, 264);
 
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 18px monospace';
+  var btnW = 184, btnH = 92, gap = 18;
+  var totalW = 3*btnW + 2*gap;
+  var startX = W/2 - totalW/2;
+  var btnY = 282;
+
+  var bgColors = [['#2a0808','#6a1040'],['#08102a','#102060'],['#081822','#104458']];
+  var emojis = ['Forest', 'Tundra', 'Coast'];
+
+  for (var i = 0; i < LEVELS.length; i++) {
+    var lv = LEVELS[i];
+    var bx = startX + i*(btnW+gap);
+    var grd = ctx.createLinearGradient(bx, btnY, bx, btnY+btnH);
+    grd.addColorStop(0, bgColors[i][0]);
+    grd.addColorStop(1, bgColors[i][1]);
+    ctx.fillStyle = grd;
+    ctx.fillRect(bx, btnY, btnW, btnH);
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(bx, btnY, btnW, btnH);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`Level ${i+1}: ${l.name}`, W/2, by+27);
+    ctx.textBaseline = 'top';
+    ctx.fillText('LEVEL ' + (i+1), bx+btnW/2, btnY+8);
+
+    ctx.font = '12px monospace';
+    ctx.fillStyle = '#ddbb66';
+    ctx.fillText(lv.name, bx+btnW/2, btnY+32);
+
+    ctx.fillStyle = '#aaaaaa';
+    ctx.font = '11px monospace';
+    ctx.fillText(emojis[i] + ' terrain', bx+btnW/2, btnY+52);
 
     if (bestTimes[i] < Infinity) {
-      const bs = Math.floor(bestTimes[i]/60), bm = Math.floor(bs/60), bss = bs%60;
-      ctx.fillStyle = '#ffd700';
+      ctx.fillStyle = '#88ff88';
       ctx.font = '12px monospace';
-      ctx.fillText(`Best: ${String(bm).padStart(2,'0')}:${String(bss).padStart(2,'0')}`, W/2, by+46);
+      ctx.fillText('Best: ' + (bestTimes[i]/60).toFixed(1) + 's', bx+btnW/2, btnY+70);
     } else {
-      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.fillStyle = '#555555';
       ctx.font = '11px monospace';
-      ctx.fillText('No record yet', W/2, by+46);
+      ctx.fillText('Not completed', bx+btnW/2, btnY+72);
     }
-  });
+  }
 
-  ctx.fillStyle = 'rgba(180,180,200,0.6)';
+  ctx.fillStyle = '#444444';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Click a level to start', W/2, 388);
+
+  // Bottom tree silhouettes
+  for (var i = 0; i < 12; i++) {
+    var tx = 20 + i * 72;
+    var th = 30 + (i * 13) % 22;
+    ctx.fillStyle = '#0d2208';
+    ctx.fillRect(tx+4, H-th, 8, th);
+    ctx.beginPath();
+    ctx.moveTo(tx+8, H-th-20);
+    ctx.lineTo(tx+20, H-th);
+    ctx.lineTo(tx-4, H-th);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Start marker legend
+  ctx.fillStyle = '#336633';
   ctx.font = '11px monospace';
-  ctx.fillText('↑↓←→ drive  G/Shift+G gear  Tab config  R restart', W/2, H-14);
+  ctx.textAlign = 'left';
+  ctx.fillText('GREEN dot = START   |   Checkered flag = FINISH', 20, H-14);
 }
 
-// ── Level end screen ──────────────────────────────────────────────────────────
-function drawEnd() {
-  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+function drawLevelEnd() {
+  ctx.fillStyle = 'rgba(0,0,0,0.74)';
   ctx.fillRect(0, 0, W, H);
 
-  const secs = Math.floor(timer/60), m = Math.floor(secs/60), s = secs%60;
-  const tStr = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  const best = bestTimes[lvlIdx];
-  const bs = Math.floor(best/60), bm2 = Math.floor(bs/60), bss = bs%60;
-  const bStr = best < Infinity
-    ? `${String(bm2).padStart(2,'0')}:${String(bss).padStart(2,'0')}`
-    : '--:--';
+  var pw = 430, ph = 290;
+  var px = W/2 - pw/2, py = H/2 - ph/2;
 
-  ctx.shadowColor = 'rgba(255,200,0,0.8)'; ctx.shadowBlur = 30;
-  ctx.fillStyle = '#ffd700';
-  ctx.font = 'bold 46px monospace';
+  ctx.fillStyle = '#081408';
+  ctx.fillRect(px, py, pw, ph);
+  ctx.strokeStyle = '#33dd33';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(px, py, pw, ph);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 26px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('🏁 NIVEAU TERMINÉ! 🏁', W/2, H/2-110);
-  ctx.shadowBlur = 0;
+  ctx.textBaseline = 'top';
+  ctx.fillText('LEVEL COMPLETE!', W/2, py+14);
 
-  ctx.fillStyle = '#fff';
-  ctx.font = '28px monospace';
-  ctx.fillText(`Your time: ${tStr}`, W/2, H/2-60);
+  // Checkered banner
+  var sz = 11;
+  for (var c = 0; c < Math.floor(pw/sz); c++) {
+    ctx.fillStyle = c % 2 === 0 ? '#111111' : '#ffffff';
+    ctx.fillRect(px + c*sz, py+48, sz, sz);
+  }
 
-  ctx.fillStyle = '#ffd700';
-  ctx.font = '22px monospace';
-  ctx.fillText(`Best: ${bStr}`, W/2, H/2-24);
+  ctx.fillStyle = '#ffee00';
+  ctx.font = 'bold 22px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText('Time: ' + (levelEndTime/60).toFixed(2) + 's', W/2, py+70);
 
-  const btns = [
-    { lbl:'Next Level →', act:'next',    col:'#1a6622', show: lvlIdx < LEVELS.length-1 },
-    { lbl:'Replay Level',  act:'restart', col:'#334455', show: true },
-    { lbl:'Level Select',  act:'title',   col:'#333',    show: true },
-  ].filter(b => b.show);
+  if (bestTimes[currentLevel] === levelEndTime) {
+    ctx.fillStyle = '#00ff88';
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText('* NEW BEST TIME! *', W/2, py+100);
+  } else {
+    ctx.fillStyle = '#888888';
+    ctx.font = '14px monospace';
+    ctx.fillText('Best: ' + (bestTimes[currentLevel]/60).toFixed(2) + 's', W/2, py+100);
+  }
 
-  btns.forEach((b, i) => {
-    const bx=W/2-145, by=H/2+20+i*65, bw=290, bh=52;
-    roundRect(bx, by, bw, bh, 8, b.col, ['#ffd700',2]);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 18px monospace';
+  var btnH2 = 38;
+
+  // Next level button
+  if (currentLevel < LEVELS.length - 1) {
+    var nbx = W/2-130, nby = py+130;
+    ctx.fillStyle = '#154015';
+    ctx.fillRect(nbx, nby, 260, btnH2);
+    ctx.strokeStyle = '#33dd33';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(nbx, nby, 260, btnH2);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(b.lbl, W/2, by+33);
-  });
+    ctx.textBaseline = 'middle';
+    ctx.fillText('NEXT LEVEL >', W/2, nby+btnH2/2);
+  }
+
+  // Retry
+  var rbx = W/2-130, rby = py+178;
+  ctx.fillStyle = '#2a1008';
+  ctx.fillRect(rbx, rby, 260, btnH2);
+  ctx.strokeStyle = '#ff8844';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(rbx, rby, 260, btnH2);
+  ctx.fillStyle = '#ffaa66';
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('RETRY LEVEL', W/2, rby+btnH2/2);
+
+  // Main menu
+  var mbx = W/2-130, mby = py+226;
+  ctx.fillStyle = '#0a0a1e';
+  ctx.fillRect(mbx, mby, 260, btnH2);
+  ctx.strokeStyle = '#4466cc';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(mbx, mby, 260, btnH2);
+  ctx.fillStyle = '#8899ee';
+  ctx.font = '13px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('MAIN MENU', W/2, mby+btnH2/2);
 }
 
-// ── Start a level ─────────────────────────────────────────────────────────────
-function startLevel(i) {
-  lvlIdx = i;
-  lvl = LEVELS[i];
-  lvlMap = lvl.map;
-  car = makeCar(lvl);
-  camX = W/2 - (car.gx - car.gy)*TW/2;
-  camY = H*0.46 - (car.gx + car.gy)*TH/2;
-  timer = 0;
-  waterMsg = 0;
-  configOpen = false;
-  animals = lvl.animals.map(a => ({ ...a, t: Math.floor(Math.random()*80)+10 }));
-  state = 'playing';
+function renderWorld() {
+  var lv = LEVELS[currentLevel];
+  var LW = lv.W, LH = lv.H;
+
+  // Isometric back-to-front diagonal sweep
+  for (var s = 0; s < LW + LH - 1; s++) {
+    for (var i = 0; i <= s; i++) {
+      var gx = i;
+      var gy = s - i;
+      if (gx >= 0 && gx < LW && gy >= 0 && gy < LH) {
+        var type = lv.map[gy][gx];
+        drawTile(gx, gy, type);
+
+        // Place trees
+        if (type === T_GRASS || type === T_SNOW) {
+          var hash = ((gx*31 + gy*17) * 7 + gx*gy) % 100;
+          if (hash < 44) {
+            if (lv.sky === 'arctic') {
+              drawSnowTree(gx, gy);
+            } else if (type === T_SNOW) {
+              drawSnowTree(gx, gy);
+            } else {
+              drawTree(gx, gy);
+            }
+          }
+        }
+      }
+    }
+
+    // Animals at this diagonal
+    for (var j = 0; j < animals.length; j++) {
+      var a = animals[j];
+      if (Math.floor(a.gx) + Math.floor(a.gy) === s) {
+        drawAnimal(a);
+      }
+    }
+
+    // Car at its diagonal
+    var carS = Math.floor(car.gx) + Math.floor(car.gy);
+    if (carS === s) drawCar();
+
+    // Finish flag at its diagonal
+    var fx = lv.finish.gx, fy = lv.finish.gy;
+    if (fx + fy === s) drawFinishFlag(fx, fy);
+  }
+
+  // Start indicator
+  var ss = g2s(lv.start.gx, lv.start.gy);
+  ctx.fillStyle = '#00ff44';
+  ctx.beginPath();
+  ctx.arc(ss.x + TW/2, ss.y + TH/2, 5, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#008822';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#00cc33';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('START', ss.x + TW/2, ss.y + TH/2 - 8);
 }
 
-// ── Click handler ─────────────────────────────────────────────────────────────
-C.addEventListener('click', e => {
-  const r = C.getBoundingClientRect();
-  const mx = (e.clientX - r.left) * (W / r.width);
-  const my = (e.clientY - r.top)  * (H / r.height);
+// Click handler
+canvas.addEventListener('click', function(e) {
+  var rect = canvas.getBoundingClientRect();
+  var mx = (e.clientX - rect.left) * (W / rect.width);
+  var my = (e.clientY - rect.top) * (H / rect.height);
 
   if (state === 'title') {
-    LEVELS.forEach((_, i) => {
-      const bx=W/2-170, by=212+i*72, bw=340, bh=58;
-      if (mx>=bx && mx<=bx+bw && my>=by && my<=by+bh) startLevel(i);
-    });
-    return;
-  }
-
-  if (state === 'end') {
-    const btns = [
-      { act:'next',    show: lvlIdx < LEVELS.length-1 },
-      { act:'restart', show: true },
-      { act:'title',   show: true },
-    ].filter(b => b.show);
-    btns.forEach((b, i) => {
-      const bx=W/2-145, by=H/2+20+i*65, bw=290, bh=52;
-      if (mx>=bx && mx<=bx+bw && my>=by && my<=by+bh) {
-        if (b.act==='next')    startLevel(lvlIdx+1);
-        else if (b.act==='restart') startLevel(lvlIdx);
-        else state = 'title';
+    var btnW = 184, btnH = 92, gap = 18;
+    var totalW = 3*btnW + 2*gap;
+    var startX = W/2 - totalW/2;
+    var btnY = 282;
+    for (var i = 0; i < LEVELS.length; i++) {
+      var bx = startX + i*(btnW+gap);
+      if (mx >= bx && mx <= bx+btnW && my >= btnY && my <= btnY+btnH) {
+        initLevel(i);
       }
-    });
-    return;
+    }
   }
 
-  if (state === 'playing' && configOpen) {
-    const px=W/2-215, py=H/2-170, pw=430, ph=346;
+  if (state === 'config') {
+    var pw = 450, ph = 420;
+    var px = W/2-pw/2, py = H/2-ph/2;
 
-    TIRES.forEach((_, i) => {
-      const bx=px+18+i*103, by=py+70;
-      if (mx>=bx && mx<=bx+94 && my>=by && my<=by+38) car.tireIdx = i;
-    });
-    DRIVES.forEach((_, i) => {
-      const bx=px+18+i*103, by=py+142;
-      if (mx>=bx && mx<=bx+94 && my>=by && my<=by+38) car.driveIdx = i;
-    });
-    // Auto gear toggle
-    const gmx=px+18, gmy=py+207;
-    if (mx>=gmx && mx<=gmx+190 && my>=gmy && my<=gmy+38) car.autoGear = !car.autoGear;
-
-    // Close if click outside panel
-    if (mx < px || mx > px+pw || my < py || my > py+ph) configOpen = false;
-  }
-});
-
-// ── Keyboard handler ──────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
-  keys[e.key] = true;
-  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
-
-  if (state === 'playing') {
-    if (e.key === 'Tab') { e.preventDefault(); configOpen = !configOpen; }
-    if (e.key === 'r' || e.key === 'R') startLevel(lvlIdx);
-    if (e.key === 'g' || e.key === 'G') {
-      if (car.autoGear) {
-        car.autoGear = false;
-      } else {
-        if (e.shiftKey) { if (car.gear > 0) car.gear--; }
-        else            { if (car.gear < 4) car.gear++; }
+    for (var i = 0; i < TIRE_KEYS.length; i++) {
+      var bx = px+14 + i*104, by = py+64;
+      if (mx >= bx && mx <= bx+96 && my >= by && my <= by+34) {
+        car.tireKey = TIRE_KEYS[i];
       }
+    }
+
+    for (var i = 0; i < DRIVE_KEYS.length; i++) {
+      var bx = px+14 + i*104, by = py+128;
+      if (mx >= bx && mx <= bx+96 && my >= by && my <= by+34) {
+        car.driveKey = DRIVE_KEYS[i];
+      }
+    }
+
+    for (var i = 0; i < 2; i++) {
+      var bx = px+14 + i*112, by = py+194;
+      if (mx >= bx && mx <= bx+98 && my >= by && my <= by+34) {
+        car.autoGear = (i === 0);
+      }
+    }
+
+    // Snorkel toggle
+    var snkX = px+14, snkY = py+252;
+    if (mx >= snkX && mx <= snkX+210 && my >= snkY && my <= snkY+34) {
+      car.snorkel = !car.snorkel;
+    }
+  }
+
+  if (state === 'levelEnd') {
+    var pw = 430, ph = 290;
+    var px = W/2-pw/2, py = H/2-ph/2;
+    var btnH2 = 38;
+
+    if (currentLevel < LEVELS.length-1) {
+      var nbx = W/2-130, nby = py+130;
+      if (mx >= nbx && mx <= nbx+260 && my >= nby && my <= nby+btnH2) {
+        initLevel(currentLevel+1);
+        return;
+      }
+    }
+
+    var rbx = W/2-130, rby = py+178;
+    if (mx >= rbx && mx <= rbx+260 && my >= rby && my <= rby+btnH2) {
+      initLevel(currentLevel);
+      return;
+    }
+
+    var mbx = W/2-130, mby = py+226;
+    if (mx >= mbx && mx <= mbx+260 && my >= mby && my <= mby+btnH2) {
+      state = 'title';
     }
   }
 });
 
-document.addEventListener('keyup', e => { keys[e.key] = false; });
-
-// ── Main animation loop ───────────────────────────────────────────────────────
-function loop() {
-  requestAnimationFrame(loop);
-  frame++;
+// Game loop
+function gameLoop() {
+  frameCount++;
   ctx.clearRect(0, 0, W, H);
 
   if (state === 'title') {
-    drawTitle();
-    return;
-  }
-
-  // Draw sky
-  drawSky(lvl.sky);
-
-  if (state === 'playing') {
-    updateCam();
-    updateAnimals();
+    drawTitleScreen();
+  } else if (state === 'playing') {
+    var lv = LEVELS[currentLevel];
+    drawSky(lv.sky);
     updateCar();
+    updateAnimals();
+    updateCamera();
     timer++;
+    renderWorld();
+    drawHUD();
+  } else if (state === 'config') {
+    var lv = LEVELS[currentLevel];
+    drawSky(lv.sky);
+    renderWorld();
+    drawHUD();
+    drawConfigPanel();
+  } else if (state === 'levelEnd') {
+    var lv = LEVELS[currentLevel];
+    drawSky(lv.sky);
+    renderWorld();
+    drawLevelEnd();
   }
 
-  renderWorld();
-  drawHUD();
-
-  if (configOpen && state === 'playing') drawConfig();
-  if (state === 'end') drawEnd();
+  requestAnimationFrame(gameLoop);
 }
 
-loop();
+// Initial camera
+camX = W/2 - (LEVELS[0].W/2) * (TW/2);
+camY = H/2 - 80;
+gameLoop();
 </script>
 </body>
 </html>
